@@ -43,10 +43,10 @@ jobs:
         run: msbuild _Updater_Wrapper\_Updater_Wrapper.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nr:false
 
       - name: Build runas helper
-        run: dotnet build runas\runas.csproj --configuration Release -p:Platform=x64 --no-restore
+        run: dotnet build runas\runas.csproj --configuration Release -p:Platform=x64
 
       - name: Build client
-        run: dotnet build TcNo-Acc-Switcher-Client\TcNo-Acc-Switcher-Client.csproj --configuration Release -p:Platform=x64 -p:SkipTcNoPostBuild=true --no-restore
+        run: dotnet build TcNo-Acc-Switcher-Client\TcNo-Acc-Switcher-Client.csproj --configuration Release -p:Platform=x64 -p:SkipTcNoPostBuild=true
 
       - name: Package portable build
         shell: pwsh
