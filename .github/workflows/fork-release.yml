@@ -58,7 +58,13 @@ jobs:
           if (-not $wrapper) {
             throw "Could not find _Wrapper.exe after building _Updater_Wrapper."
           }
-          $runasDir = Resolve-Path "runas/bin/x64/Release/net8.0"
+          $runasExe = Get-ChildItem -Path $PWD -Recurse -Filter "runas.exe" |
+            Where-Object { $_.FullName -match "[\\/]bin[\\/]" } |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $runasExe) {
+            throw "Could not find runas.exe after building runas."
+          }
+          $runasDir = Split-Path -Parent $runasExe
           $stageRoot = Join-Path $PWD "artifacts"
           $stage = Join-Path $stageRoot "TcNo-Acc-Switcher"
           $zip = Join-Path $stageRoot "TcNo-Acc-Switcher-${{ inputs.tag_name }}.zip"
