@@ -53,7 +53,11 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $buildDir = Resolve-Path "TcNo-Acc-Switcher-Client/bin/x64/Release/net8.0-windows7.0"
-          $wrapper = Resolve-Path "TcNo-Acc-Switcher-Client/bin/Wrapper/_Wrapper.exe"
+          $wrapper = Get-ChildItem -Path $PWD -Recurse -Filter "_Wrapper.exe" |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $wrapper) {
+            throw "Could not find _Wrapper.exe after building _Updater_Wrapper."
+          }
           $runasDir = Resolve-Path "runas/bin/x64/Release/net8.0"
           $stageRoot = Join-Path $PWD "artifacts"
           $stage = Join-Path $stageRoot "TcNo-Acc-Switcher"
