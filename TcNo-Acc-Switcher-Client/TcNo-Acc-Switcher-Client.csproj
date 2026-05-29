@@ -63,7 +63,7 @@
     </None>
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(SkipTcNoPostBuild)' != 'true'">
     <Exec Command="PostBuild.bat $(Configuration) $(ProjectDir)" IgnoreExitCode="true" />
   </Target>
 

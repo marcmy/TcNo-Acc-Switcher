@@ -1,0 +1,117 @@
+name: Fork portable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag to create
+        required: true
+        default: marc-tray-fixes-1
+      release_name:
+        description: Release title
+        required: true
+        default: Marc fork tray fixes 1
+      prerelease:
+        description: Mark release as prerelease
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore
+        run: dotnet restore TcNo-Acc-Switcher.sln
+
+      - name: Build launcher wrapper
+        run: msbuild _Updater_Wrapper\_Updater_Wrapper.vcxproj /p:Configuration=Release /p:Platform=x64 /m /nr:false
+
+      - name: Build runas helper
+        run: dotnet build runas\runas.csproj --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Build client
+        run: dotnet build TcNo-Acc-Switcher-Client\TcNo-Acc-Switcher-Client.csproj --configuration Release -p:Platform=x64 -p:SkipTcNoPostBuild=true --no-restore
+
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $buildDir = Resolve-Path "TcNo-Acc-Switcher-Client/bin/x64/Release/net8.0-windows7.0"
+          $wrapper = Resolve-Path "TcNo-Acc-Switcher-Client/bin/Wrapper/_Wrapper.exe"
+          $runasDir = Resolve-Path "runas/bin/x64/Release/net8.0"
+          $stageRoot = Join-Path $PWD "artifacts"
+          $stage = Join-Path $stageRoot "TcNo-Acc-Switcher"
+          $zip = Join-Path $stageRoot "TcNo-Acc-Switcher-${{ inputs.tag_name }}.zip"
+
+          Remove-Item -LiteralPath $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item -Path (Join-Path $buildDir "*") -Destination $stage -Recurse -Force
+
+          Copy-Item (Join-Path $runasDir "runas.exe") $stage -Force
+          Copy-Item (Join-Path $runasDir "runas.dll") $stage -Force
+          Copy-Item (Join-Path $runasDir "runas.runtimeconfig.json") $stage -Force
+
+          Rename-Item (Join-Path $stage "TcNo-Acc-Switcher.exe") "TcNo-Acc-Switcher_main.exe"
+          Rename-Item (Join-Path $stage "TcNo-Acc-Switcher-Server.exe") "TcNo-Acc-Switcher-Server_main.exe"
+          Rename-Item (Join-Path $stage "TcNo-Acc-Switcher-Tray.exe") "TcNo-Acc-Switcher-Tray_main.exe"
+
+          $updaterDir = Join-Path $stage "updater"
+          New-Item -ItemType Directory -Path $updaterDir -Force | Out-Null
+          if (Test-Path (Join-Path $stage "TcNo-Acc-Switcher-Updater.exe")) {
+            Move-Item (Join-Path $stage "TcNo-Acc-Switcher-Updater.exe") (Join-Path $updaterDir "TcNo-Acc-Switcher-Updater_main.exe") -Force
+          }
+          foreach ($file in @("TcNo-Acc-Switcher-Updater.dll", "TcNo-Acc-Switcher-Updater.deps.json", "TcNo-Acc-Switcher-Updater.runtimeconfig.json", "TcNo-Acc-Switcher-Updater.pdb")) {
+            $path = Join-Path $stage $file
+            if (Test-Path $path) { Move-Item $path $updaterDir -Force }
+          }
+
+          Copy-Item $wrapper (Join-Path $stage "TcNo-Acc-Switcher.exe") -Force
+          Copy-Item $wrapper (Join-Path $stage "TcNo-Acc-Switcher-Server.exe") -Force
+          Copy-Item $wrapper (Join-Path $stage "TcNo-Acc-Switcher-Tray.exe") -Force
+          Copy-Item $wrapper (Join-Path $updaterDir "TcNo-Acc-Switcher-Updater.exe") -Force
+
+          $wwwroot = Join-Path $stage "wwwroot"
+          if (Test-Path $wwwroot) {
+            Rename-Item $wwwroot "originalwwwroot"
+          }
+
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -Force
+          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TcNo-Acc-Switcher-${{ inputs.tag_name }}
+          path: ${{ env.ZIP_PATH }}
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $args = @(
+            "release", "create", "${{ inputs.tag_name }}", $env:ZIP_PATH,
+            "--repo", $env:GITHUB_REPOSITORY,
+            "--title", "${{ inputs.release_name }}",
+            "--notes", "Portable unsigned build from the marcmy fork with tray stability fixes. Includes refreshed tray account labels, tray auto-start restoration, tray Exit timeout/fallback, removal of silent tray UAC retry, and current CefSharp compile compatibility."
+          )
+          if ("${{ inputs.prerelease }}" -eq "true") {
+            $args += "--prerelease"
+          }
+          gh @args
