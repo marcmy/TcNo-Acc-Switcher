@@ -1,0 +1,51 @@
+name: Validate Wails v3 beta.27 update (temporary)
+on:
+  push:
+    branches: [maintenance/wails-beta27-coordinated]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - name: Install matching Wails CLI
+        shell: pwsh
+        run: |
+          $goBin = Join-Path $env:USERPROFILE 'go\bin'
+          $env:PATH = "$goBin;$env:PATH"
+          Add-Content -Path $env:GITHUB_PATH -Value $goBin
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.27
+          wails3 version
+      - name: Install frontend
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Generate Wails bindings
+        run: wails3 generate bindings -f "-tags production,devtools" -clean=true -ts
+      - name: Check, test and build frontend
+        working-directory: frontend
+        run: |
+          pnpm run check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm run test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        shell: pwsh
+      - name: Build Windows Go application
+        shell: pwsh
+        run: |
+          go test ./internal/dependencypolicy ./internal/updatecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go build -tags production,devtools -trimpath -buildvcs=false -o "$env:RUNNER_TEMP\TcNo-Acc-Switcher.exe"
