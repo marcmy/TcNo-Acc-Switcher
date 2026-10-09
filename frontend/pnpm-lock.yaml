@@ -380,7 +380,7 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  devalue@6.0.3:
+  devalue@5.9.3:
     resolution: {integrity: sha512-xRumYOCUZN/EesqHEU3WOXanOZNvfZFZ/o1AHVFDX1yI0UAkZkOgDXt341CzKoBVIkgQba55/+DjGBKrIoKcHw==}
 
   dom-serializer@2.0.0:
@@ -972,7 +972,7 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  devalue@6.0.3: {}
+  devalue@5.9.3: {}
 
   dom-serializer@2.0.0:
     dependencies:
@@ -1181,7 +1181,7 @@ snapshots:
       aria-query: 5.3.1
       axobject-query: 4.1.0
       clsx: 2.1.1
-      devalue: 6.0.3
+      devalue: 5.9.3
       esm-env: 1.2.2
       esrap: 2.3.6
       is-reference: 3.0.3
