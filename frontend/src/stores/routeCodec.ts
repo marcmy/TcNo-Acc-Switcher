@@ -39,40 +39,50 @@ export function serializeRoute(r: Route): string {
   }
 }
 
-type RouteParser = (parts: string[]) => Route | null;
-
-// A Map cannot resolve inherited Object.prototype members as route handlers.
-const ROUTE_PARSERS: ReadonlyMap<string, RouteParser> = new Map(Object.entries({
-  "":                  () => ({ page: "home" }),
-  home:                () => ({ page: "home" }),
-  settings:            () => ({ page: "settings" }),
-  "preview-css":       () => ({ page: "preview-css" }),
-  test:                () => ({ page: "preview-css" }),
-  "manage-platforms":   () => ({ page: "manage-platforms" }),
-  platform:             (p) => p[1] ? { page: "platform", platformName: decodeURIComponent(p[1]) } : null,
-  "platform-settings":  (p) => p[1] ? { page: "platform-settings", platformName: decodeURIComponent(p[1]) } : null,
-  steam:                (p) => {
-    switch (p[1]?.toLowerCase()) {
-      case "advanced-clearing": return { page: "steam-advanced-clearing" };
-      case "confirmations":     return { page: "steam-confirmations" };
-      case "server-picker":     return { page: "steam-server-picker" };
-      // The session id names which open window this chrome belongs to, so the
-      // toolbar's commands reach the right content view.
-      case "browser":           return p[2] ? { page: "steam-browser", sessionId: decodeURIComponent(p[2]) } : null;
-      default:                  return null;
-    }
-  },
-} satisfies Record<string, RouteParser>));
-
+// Route names come from the URL. Keep dispatch explicit rather than invoking
+// a handler chosen by a string lookup (including inherited JS method names).
 export function parseHash(hash: string): Route | null {
-  let h = (hash.startsWith("#") ? hash.slice(1) : hash).trim();
+  const h = (hash.startsWith("#") ? hash.slice(1) : hash).trim();
   if (!h || h === "/") return { page: "home" };
 
   const parts = h.split("/").filter((p) => p.length > 0);
-  const head = decodeURIComponent(parts[0] || "").toLowerCase();
-
-  const parser = ROUTE_PARSERS.get(head);
-  return parser ? parser(parts) : null;
+  try {
+    const head = decodeURIComponent(parts[0] || "").toLowerCase();
+    switch (head) {
+      case "":
+      case "home":
+        return { page: "home" };
+      case "settings":
+        return { page: "settings" };
+      case "preview-css":
+      case "test":
+        return { page: "preview-css" };
+      case "manage-platforms":
+        return { page: "manage-platforms" };
+      case "platform":
+        return parts[1] ? { page: "platform", platformName: decodeURIComponent(parts[1]) } : null;
+      case "platform-settings":
+        return parts[1] ? { page: "platform-settings", platformName: decodeURIComponent(parts[1]) } : null;
+      case "steam":
+        switch (parts[1]?.toLowerCase()) {
+          case "advanced-clearing":
+            return { page: "steam-advanced-clearing" };
+          case "confirmations":
+            return { page: "steam-confirmations" };
+          case "server-picker":
+            return { page: "steam-server-picker" };
+          case "browser":
+            return parts[2] ? { page: "steam-browser", sessionId: decodeURIComponent(parts[2]) } : null;
+          default:
+            return null;
+        }
+      default:
+        return null;
+    }
+  } catch {
+    // Malformed percent-encoding must not crash hash-driven navigation.
+    return null;
+  }
 }
 
 export function validateRoute(r: Route, startup: PlatformStartup): Route {

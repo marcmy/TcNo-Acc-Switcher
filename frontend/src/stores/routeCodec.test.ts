@@ -59,3 +59,14 @@ describe("parseHash untrusted routes", () => {
     });
   });
 });
+
+describe("parseHash handles malformed URLs", () => {
+  it.each(["#/%", "#/platform/%E0%A4%A", "#/steam/browser/%GG"])(
+    "returns null for invalid percent escapes", (hash) => {
+      expect(parseHash(hash)).toBeNull();
+    },
+  );
+  it("preserves the legacy preview route alias", () => {
+    expect(parseHash("#/test")).toEqual({ page: "preview-css" });
+  });
+});
