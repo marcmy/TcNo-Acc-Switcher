@@ -2063,7 +2063,7 @@ await PreviewCssContrastSampler.run({ prepare: true })
   }
 
   function escapeMarkdownCell(value) {
-    return String(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+    return String(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r\n?|\n/g, " ");
   }
 
   function valueOrBlank(value) {
