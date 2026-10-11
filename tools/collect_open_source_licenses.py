@@ -26,6 +26,7 @@ import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 
 LICENSE_FILE_PREFIXES = (
@@ -612,12 +613,16 @@ def normalize_git_url(repository: Any) -> str | None:
     url = url.strip()
     if url.startswith("git+"):
         url = url[4:]
-    if url.startswith("git://github.com/"):
-        url = "https://github.com/" + url[len("git://github.com/") :]
     if url.startswith("github:"):
-        url = "https://github.com/" + url[len("github:") :]
-    if url.startswith("http://github.com/"):
-        url = "https://github.com/" + url[len("http://github.com/") :]
+        return "https://github.com/" + url[len("github:") :]
+    # Only rewrite URLs whose parsed authority is exactly GitHub, never a
+    # lookalike hostname or a URL that merely contains github.com.
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return url
+    if parsed.scheme in ("git", "http") and parsed.netloc.lower() == "github.com":
+        return urlunsplit(("https", "github.com", parsed.path, parsed.query, parsed.fragment))
     return url
 
 
