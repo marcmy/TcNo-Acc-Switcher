@@ -30,7 +30,7 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
-      - run: go test ./internal/basic ./internal/platform ./internal/security ./internal/steamguard/mafile
+      - run: go test ./internal/basic ./internal/platform ./internal/security ./internal/steamguard/mafile ./internal/app
 
   frontend-routes:
     name: Frontend route regression tests
