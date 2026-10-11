@@ -647,7 +647,11 @@ func unpackDir(data []byte, dest string) error {
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
-	cleanDest := filepath.Clean(dest)
+	root, err := os.OpenRoot(dest)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	for {
 		h, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -660,17 +664,18 @@ func unpackDir(data []byte, dest string) error {
 		if name == "." || filepath.IsAbs(name) || strings.HasPrefix(name, ".."+string(filepath.Separator)) || name == ".." {
 			return fmt.Errorf("unsafe path in account blob: %s", h.Name)
 		}
-		target := filepath.Join(cleanDest, name)
+		// Keep all archive writes beneath the extraction root, including
+		// when an existing directory component is a symlink.
 		switch h.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err := root.MkdirAll(name, 0o755); err != nil {
 				return err
 			}
 		case tar.TypeReg, tar.TypeRegA:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
 				return err
 			}
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(h.Mode))
+			f, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(h.Mode)&0o777)
 			if err != nil {
 				return err
 			}
