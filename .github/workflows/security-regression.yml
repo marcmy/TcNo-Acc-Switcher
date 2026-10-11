@@ -5,12 +5,16 @@ on:
     paths:
       - 'internal/**'
       - 'frontend/**'
+      - 'tools/**'
+      - 'other/tools/**'
       - '.github/workflows/security-regression.yml'
   push:
     branches: [master]
     paths:
       - 'internal/**'
       - 'frontend/**'
+      - 'tools/**'
+      - 'other/tools/**'
       - '.github/workflows/security-regression.yml'
 
 permissions:
@@ -49,3 +53,17 @@ jobs:
       - run: npm install -g pnpm@11.0.8
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run src/stores/routeCodec.test.ts
+
+  utility-sanitizers:
+    name: Utility input sanitizer regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: python3 -m unittest discover -s tools -p 'test_collect_open_source_licenses.py'
+      - run: node --check other/tools/preview_css_contrast_sampler.js
