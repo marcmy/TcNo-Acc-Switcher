@@ -44,3 +44,18 @@ describe("Steam confirmations route", () => {
     expect(parseHash("#/steam/confirmations")).toEqual(route);
   });
 });
+
+describe("parseHash untrusted routes", () => {
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty"])(
+    "does not invoke inherited object method %s", (name) => {
+      expect(parseHash("#/" + name)).toBeNull();
+    },
+  );
+
+  it("keeps legitimate parameterized platform routes", () => {
+    expect(parseHash("#/platform/Steam%20Beta")).toEqual({
+      page: "platform",
+      platformName: "Steam Beta",
+    });
+  });
+});
