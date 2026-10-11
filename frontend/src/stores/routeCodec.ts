@@ -41,7 +41,8 @@ export function serializeRoute(r: Route): string {
 
 type RouteParser = (parts: string[]) => Route | null;
 
-const ROUTE_PARSERS: Record<string, RouteParser> = {
+// A Map cannot resolve inherited Object.prototype members as route handlers.
+const ROUTE_PARSERS: ReadonlyMap<string, RouteParser> = new Map(Object.entries({
   "":                  () => ({ page: "home" }),
   home:                () => ({ page: "home" }),
   settings:            () => ({ page: "settings" }),
@@ -61,7 +62,7 @@ const ROUTE_PARSERS: Record<string, RouteParser> = {
       default:                  return null;
     }
   },
-};
+} satisfies Record<string, RouteParser>));
 
 export function parseHash(hash: string): Route | null {
   let h = (hash.startsWith("#") ? hash.slice(1) : hash).trim();
@@ -70,7 +71,7 @@ export function parseHash(hash: string): Route | null {
   const parts = h.split("/").filter((p) => p.length > 0);
   const head = decodeURIComponent(parts[0] || "").toLowerCase();
 
-  const parser = ROUTE_PARSERS[head];
+  const parser = ROUTE_PARSERS.get(head);
   return parser ? parser(parts) : null;
 }
 

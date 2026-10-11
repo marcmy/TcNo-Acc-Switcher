@@ -27,7 +27,9 @@ func deepMergeJSON(base, override json.RawMessage) (json.RawMessage, error) {
 		return append(json.RawMessage(nil), override...), nil
 	}
 
-	out := make(map[string]json.RawMessage, len(baseObj)+len(overrideObj))
+	// The map expands automatically if overrides introduce new keys. Avoid
+	// adding untrusted collection lengths when calculating capacity.
+	out := make(map[string]json.RawMessage, len(baseObj))
 	for k, v := range baseObj {
 		out[k] = v
 	}
