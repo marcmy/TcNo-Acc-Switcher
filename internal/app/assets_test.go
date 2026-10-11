@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"os"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -117,5 +118,45 @@ func BenchmarkAssetRequest(b *testing.B) {
 				handler.ServeHTTP(httptest.NewRecorder(), req)
 			}
 		})
+	}
+}
+
+func TestCompositeAssetHandlerConfinesWritableMediaOverlay(t *testing.T) {
+	exeDir := t.TempDir()
+	platform.ResetPathSingletonsForTest(exeDir)
+	paths.ResetForTest(filepath.Join(exeDir, "TcNo Account Switcher"))
+	wwwroot, err := platform.WwwrootDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(wwwroot, "img"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wwwroot, "img", "normal.png"), []byte("normal-disk-image"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(exeDir, "private.png")
+	if err := os.WriteFile(outside, []byte("private-outside-file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(wwwroot, "img", "escape.png")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	handler := newCompositeAssetHandler(fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+		"img/escape.png": &fstest.MapFile{Data: []byte("embedded-safe-image")},
+	})
+	for _, tc := range []struct{ url, want string }{
+		{"/img/normal.png", "normal-disk-image"},
+		{"/img/escape.png", "embedded-safe-image"},
+	} {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "http://wails.localhost"+tc.url, nil))
+		if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), tc.want) {
+			t.Errorf("%s: HTTP %d, body %q; want %q", tc.url, rr.Code, rr.Body.String(), tc.want)
+		}
+		if strings.Contains(rr.Body.String(), "private-outside-file") {
+			t.Errorf("%s: exposed file outside wwwroot", tc.url)
+		}
 	}
 }
