@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"archive/zip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -76,5 +77,45 @@ func TestLatestBackupZipSelectsNewest(t *testing.T) {
 	}
 	if filepath.Clean(got) != filepath.Clean(newPath) {
 		t.Fatalf("expected newest backup, got %q", got)
+	}
+}
+
+func TestExtractZipSafelyRejectsSymlinkEscape(t *testing.T) {
+	base := t.TempDir()
+	dest := filepath.Join(base, "restore")
+	outside := filepath.Join(base, "outside")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dest, "escape")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	archive := filepath.Join(base, "backup.zip")
+	file, err := os.Create(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	entry, err := writer.Create("escape/evil.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write([]byte("escaped")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := extractZipSafely(archive, dest); err == nil {
+		t.Fatal("archive extraction followed a symlink outside the root")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "evil.txt")); !os.IsNotExist(err) {
+		t.Fatalf("archive wrote outside the root: %v", err)
 	}
 }

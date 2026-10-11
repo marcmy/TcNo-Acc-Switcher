@@ -388,6 +388,14 @@ func extractZipSafely(zipPath, destDir string) (int, int64, error) {
 	}
 	defer zr.Close()
 
+	// Root-relative operations reject traversal and symlinks leading outside
+	// the restoration directory, even if filesystem entries change.
+	root, err := os.OpenRoot(destDir)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer root.Close()
+
 	files := 0
 	var bytesWritten int64
 	for _, f := range zr.File {
@@ -398,14 +406,18 @@ func extractZipSafely(zipPath, destDir string) (int, int64, error) {
 		if err != nil {
 			return 0, 0, err
 		}
-		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		relPath, err := filepath.Rel(destDir, outPath)
+		if err != nil {
+			return 0, 0, err
+		}
+		if err := root.MkdirAll(filepath.Dir(relPath), 0o755); err != nil {
 			return 0, 0, err
 		}
 		rc, err := f.Open()
 		if err != nil {
 			return 0, 0, err
 		}
-		out, err := os.Create(outPath)
+		out, err := root.Create(relPath)
 		if err != nil {
 			_ = rc.Close()
 			return 0, 0, err
