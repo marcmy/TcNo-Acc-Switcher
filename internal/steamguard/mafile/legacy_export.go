@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"errors"
+	"math"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -65,7 +66,10 @@ func ExportLegacyEncrypted(account Account, options ExportOptions, password stri
 	if err != nil {
 		return LegacyEncryptedExport{}, err
 	}
-	padded := padPKCS7(plaintext, aes.BlockSize)
+	padded, err := padPKCS7(plaintext, aes.BlockSize)
+	if err != nil {
+		return LegacyEncryptedExport{}, err
+	}
 	defer wipeBytes(padded)
 	sealed := make([]byte, len(padded))
 	cipher.NewCBCEncrypter(block, iv).CryptBlocks(sealed, padded)
@@ -79,12 +83,19 @@ func ExportLegacyEncrypted(account Account, options ExportOptions, password stri
 
 // padPKCS7 appends PKCS#7 padding, always adding at least one byte so the length
 // is unambiguous when unpadding.
-func padPKCS7(data []byte, blockSize int) []byte {
+func padPKCS7(data []byte, blockSize int) ([]byte, error) {
+	if blockSize < 1 || blockSize > 255 {
+		return nil, errors.New("mafile: invalid PKCS#7 block size")
+	}
 	padding := blockSize - len(data)%blockSize
+	// Guard the allocation length against overflow on untrusted input sizes.
+	if len(data) > math.MaxInt-padding {
+		return nil, errors.New("mafile: padded plaintext size overflows int")
+	}
 	padded := make([]byte, len(data)+padding)
 	copy(padded, data)
 	for index := len(data); index < len(padded); index++ {
 		padded[index] = byte(padding)
 	}
-	return padded
+	return padded, nil
 }
