@@ -97,3 +97,32 @@ func TestParsePrefersTheLoginVerdict(t *testing.T) {
 		t.Fatalf("outcome = %v, want not-signed-in", got)
 	}
 }
+
+func TestParseRejectsEmbeddedOrExtendedTradeURL(t *testing.T) {
+    cases := map[string]string{
+        "URL inside attacker query": "https://attacker.example/?next=https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc",
+        "URL inside attacker fragment": "https://attacker.example/#https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc",
+        "URL inside lookalike hostname": "https://evil.https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc",
+        "token exceeds max length": "https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=" + strings.Repeat("a", 33),
+        "token has hostile suffix": "https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc.evil",
+        "embedded URL after equals": "redirect=https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc",
+        "longer host suffix": "https://steamcommunity.com.evil.test/tradeoffer/new/?partner=1&amp;token=abc",
+    }
+    for name, candidate := range cases {
+        t.Run(name, func(t *testing.T) {
+            result := Parse(page(candidate))
+            if result.Outcome != OutcomeUnrecognised || result.URL != "" {
+                t.Fatalf("unexpectedly accepted %q: %+v", candidate, result)
+            }
+        })
+    }
+}
+
+func TestParseFindsTradeURLAfterUnrelatedHTMLLink(t *testing.T) {
+    body := []byte("<html><body><a href=\"https://attacker.example/?next=https://steamcommunity.com/tradeoffer/new/?partner=1&amp;token=abc\">bad</a>" +
+       "<input value=\"https://steamcommunity.com/tradeoffer/new/?partner=7&amp;token=good\" /></body></html>")
+    result := Parse(body)
+    if result.Outcome != OutcomeParsed || result.Partner != "7" || result.Token != "good" {
+        t.Fatalf("did not select correct Steam URL: %+v", result)
+    }
+}
