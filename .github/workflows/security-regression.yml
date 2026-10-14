@@ -40,8 +40,65 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
-      - run: go test ./internal/...
-      - run: go test ./internal/dependencypolicy ./internal/updatecheck
+      - run: go test -run '^
+
+  frontend-routes:
+    name: Frontend route regression tests
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm install -g pnpm@11.0.8
+      - name: Generate Wails bindings for frontend type-check and build
+        working-directory: .
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.28
+          if ($LASTEXITCODE -ne 0) { throw 'Wails 3 CLI installation failed' }
+          $wailsBin = Join-Path (go env GOPATH) 'bin/wails3.exe'
+          & $wailsBin generate bindings -f "-tags production,devtools" -clean=true -ts
+          if ($LASTEXITCODE -ne 0) { throw 'Wails 3 binding generation failed' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run src/stores/routeCodec.test.ts
+      - run: pnpm run check
+      - run: pnpm run build
+      - name: Build unsigned Windows application (no signing or release)
+        working-directory: .
+        shell: pwsh
+        run: |
+          go build -tags production,devtools -trimpath -buildvcs=false -o "$env:RUNNER_TEMP/TcNo-Acc-Switcher-ci.exe" .
+          if ($LASTEXITCODE -ne 0) { throw 'Windows application compilation failed' }
+          if (-not (Test-Path -LiteralPath "$env:RUNNER_TEMP/TcNo-Acc-Switcher-ci.exe")) {
+            throw 'Windows application executable was not produced'
+          }
+
+  utility-sanitizers:
+    name: Utility input sanitizer regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: python3 -m unittest discover -s tools -p 'test_collect_open_source_licenses.py'
+      - run: node --check other/tools/preview_css_contrast_sampler.js
+ ./internal/...
+      - run: go test ./internal/basic ./internal/platform ./internal/security ./internal/steamguard/mafile ./internal/app ./internal/dependencypolicy ./internal/updatecheck
 
   frontend-routes:
     name: Frontend route regression tests
