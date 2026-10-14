@@ -75,6 +75,15 @@ jobs:
       - run: pnpm exec vitest run src/stores/routeCodec.test.ts
       - run: pnpm run check
       - run: pnpm run build
+      - name: Build unsigned Windows application (no signing or release)
+        working-directory: .
+        shell: pwsh
+        run: |
+          go build -tags production,devtools -trimpath -buildvcs=false -o "$env:RUNNER_TEMP/TcNo-Acc-Switcher-ci.exe" .
+          if ($LASTEXITCODE -ne 0) { throw 'Windows application compilation failed' }
+          if (-not (Test-Path -LiteralPath "$env:RUNNER_TEMP/TcNo-Acc-Switcher-ci.exe")) {
+            throw 'Windows application executable was not produced'
+          }
 
   utility-sanitizers:
     name: Utility input sanitizer regression tests
