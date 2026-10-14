@@ -20,12 +20,12 @@ importers:
         specifier: 3.0.0-beta.27
         version: 3.0.0-beta.27
       yaml:
-        specifier: 2.9.0
-        version: 2.9.0
+        specifier: 2.9.1
+        version: 2.9.1
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: 7.3.1
-        version: 7.3.1(svelte@5.57.0)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))
+        version: 7.3.1(svelte@5.57.0)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))
       '@tsconfig/svelte':
         specifier: 5.0.8
         version: 5.0.8
@@ -52,10 +52,10 @@ importers:
         version: 6.0.3
       vite:
         specifier: 8.2.2
-        version: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)
+        version: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)
       vitest:
         specifier: 5.0.3
-        version: 5.0.3(@types/node@26.6.4)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))
+        version: 5.0.3(@types/node@26.6.4)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))
 
 packages:
 
@@ -738,8 +738,8 @@ packages:
     engines: {node: '>=20.11'}
     hasBin: true
 
-  yaml@2.9.0:
-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -883,14 +883,14 @@ snapshots:
 
   '@sveltejs/load-config@0.2.3': {}
 
-  '@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.0)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))':
+  '@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.0)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))':
     dependencies:
       deepmerge: 4.3.1
       magic-string: 1.4.2
       obug: 2.2.1
       svelte: 5.57.0
-      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)
-      vitefu: 1.1.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))
+      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)
+      vitefu: 1.1.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))
 
   '@tsconfig/svelte@5.0.8': {}
 
@@ -907,14 +907,14 @@ snapshots:
     dependencies:
       undici-types: 8.9.0
 
-  '@vitest/mocker@5.0.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))':
+  '@vitest/mocker@5.0.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
       estree-walker: 3.0.3
       magic-string: 1.4.2
     optionalDependencies:
-      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)
+      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)
 
   '@vitest/spy@5.0.3': {}
 
@@ -1216,7 +1216,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0):
+  vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1227,16 +1227,16 @@ snapshots:
       '@types/node': 26.6.4
       fsevents: 2.3.3
       sass: 1.103.1
-      yaml: 2.9.0
+      yaml: 2.9.1
 
-  vitefu@1.1.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)):
+  vitefu@1.1.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)):
     optionalDependencies:
-      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)
+      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)
 
-  vitest@5.0.3(@types/node@26.6.4)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)):
+  vitest@5.0.3(@types/node@26.6.4)(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0))
+      '@vitest/mocker': 5.0.3(vite@8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -1247,7 +1247,7 @@ snapshots:
       tinybench: 6.2.0
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.0)
+      vite: 8.2.2(@types/node@26.6.4)(sass@1.103.1)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
       '@types/node': 26.6.4
@@ -1256,6 +1256,6 @@ snapshots:
 
   why-is-node-running@3.2.1: {}
 
-  yaml@2.9.0: {}
+  yaml@2.9.1: {}
 
   zimmerframe@1.1.5: {}
