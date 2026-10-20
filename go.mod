@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/Jleagle/steam-go v0.0.0-20260702210647-a0025544c8f4
 	github.com/Microsoft/go-winio v0.6.3
-	github.com/antchfx/htmlquery v1.3.6
+	github.com/antchfx/htmlquery v1.3.7
 	github.com/go-ctap/ctaphid v0.7.0
 	github.com/go-ctap/winhello v0.1.0
 	github.com/go-ole/go-ole v1.3.0
@@ -34,7 +34,7 @@ require (
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
-	github.com/antchfx/xpath v1.3.8 // indirect
+	github.com/antchfx/xpath v1.3.9 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.3 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
