@@ -18,6 +18,12 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 100
+    # Hardware-key dependencies are deliberately pinned. Upgrading requires
+    # real-key enrol/unlock testing to protect existing vaults.
+    # See internal/steamguard/hwkey/pinned_versions_test.go.
+    ignore:
+      - dependency-name: "github.com/go-ctap/ctaphid"
+      - dependency-name: "github.com/go-ctap/winhello"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
