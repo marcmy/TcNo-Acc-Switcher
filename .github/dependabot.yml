@@ -8,7 +8,7 @@ updates:
       timezone: "America/New_York"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 100
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -17,13 +17,13 @@ updates:
       timezone: "America/New_York"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 100
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
       time: "12:00"
       timezone: "America/New_York"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 100
     cooldown:
       default-days: 7
