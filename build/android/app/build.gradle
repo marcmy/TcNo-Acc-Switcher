@@ -49,10 +49,11 @@ android {
     }
 
     // Packaging options
-    packagingOptions {
-        // Don't strip Go symbols in debug builds
-        doNotStrip '*/arm64-v8a/libwails.so'
-        doNotStrip '*/x86_64/libwails.so'
+    packaging {
+        jniLibs {
+            // Preserve Go symbols for both supported Android ABIs.
+            keepDebugSymbols += ['*/arm64-v8a/libwails.so', '*/x86_64/libwails.so']
+        }
     }
 }
 
