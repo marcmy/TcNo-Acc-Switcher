@@ -6,8 +6,6 @@ updates:
       interval: "daily"
       time: "12:00"
       timezone: "America/New_York"
-    cooldown:
-      default-days: 7
     open-pull-requests-limit: 100
   - package-ecosystem: "gomod"
     directory: "/"
@@ -15,8 +13,6 @@ updates:
       interval: "daily"
       time: "12:00"
       timezone: "America/New_York"
-    cooldown:
-      default-days: 7
     open-pull-requests-limit: 100
     # Hardware-key dependencies are deliberately pinned. Upgrading requires
     # real-key enrol/unlock testing to protect existing vaults.
@@ -31,5 +27,11 @@ updates:
       time: "12:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 100
-    cooldown:
-      default-days: 7
+
+  - package-ecosystem: "gradle"
+    directory: "/build/android"
+    schedule:
+      interval: "daily"
+      time: "12:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 100

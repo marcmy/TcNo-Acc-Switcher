@@ -1,0 +1,38 @@
+name: Android shell build
+
+on:
+  pull_request:
+    paths:
+      - 'build/android/**'
+      - '.github/workflows/android-build.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'build/android/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-shell-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-shell:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Select hosted JDK 21
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_21_X64/bin" >> "$GITHUB_PATH"
+      - name: Compile and package Android debug shell
+        working-directory: build/android
+        run: bash gradlew --no-daemon :app:assembleDebug
+      - name: Verify APK
+        run: test -s build/android/app/build/outputs/apk/debug/app-debug.apk
