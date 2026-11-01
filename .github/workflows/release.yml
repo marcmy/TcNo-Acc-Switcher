@@ -139,7 +139,7 @@ jobs:
           node-version: 24
 
       - name: Install pnpm
-        run: npm install -g pnpm@11.0.8
+        run: npm install -g pnpm@11.22.0
 
       - name: Install Windows packaging tools
         shell: pwsh

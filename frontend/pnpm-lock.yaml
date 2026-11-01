@@ -12,6 +12,9 @@ overrides:
   devalue@<=5.9.2: 5.9.3
   source-map-js@<1.2.2: 1.2.2
 
+patchedDependencies:
+  deepmerge@4.3.1: 031cff87e0076d351bd5c16c39becdcfc30d6e72f3a71c4756b4e8b096b77a87
+
 importers:
 
   .:
@@ -892,7 +895,7 @@ snapshots:
 
   '@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.3)(vite@8.3.5(@types/node@26.6.5)(sass@1.106.1)(yaml@2.9.1))':
     dependencies:
-      deepmerge: 4.3.1
+      deepmerge: 4.3.1(patch_hash=031cff87e0076d351bd5c16c39becdcfc30d6e72f3a71c4756b4e8b096b77a87)
       magic-string: 1.4.2
       obug: 2.2.1
       svelte: 5.57.3
@@ -975,7 +978,7 @@ snapshots:
     dependencies:
       css-tree: 2.2.1
 
-  deepmerge@4.3.1: {}
+  deepmerge@4.3.1(patch_hash=031cff87e0076d351bd5c16c39becdcfc30d6e72f3a71c4756b4e8b096b77a87): {}
 
   detect-libc@2.1.2: {}
 

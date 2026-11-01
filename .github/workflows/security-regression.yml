@@ -61,7 +61,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: npm install -g pnpm@11.0.8
+      - run: npm install -g pnpm@11.22.0
       - name: Generate Wails bindings for frontend type-check and build
         working-directory: .
         shell: pwsh
@@ -72,7 +72,7 @@ jobs:
           & $wailsBin generate bindings -f "-tags production,devtools" -clean=true -ts
           if ($LASTEXITCODE -ne 0) { throw 'Wails 3 binding generation failed' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run src/stores/routeCodec.test.ts
+      - run: pnpm exec vitest run src/stores/routeCodec.test.ts src/lib/deepmerge-security.test.ts
       - run: pnpm run check
       - run: pnpm run build
       - name: Build unsigned Windows application (no signing or release)
