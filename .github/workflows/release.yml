@@ -17,7 +17,7 @@ env:
   GOPROXY: https://proxy.golang.org,direct
   GOSUMDB: sum.golang.org
   GOTOOLCHAIN: auto
-  WAILS3_VERSION: v3.1.0
+  WAILS3_VERSION: v3.0.0-beta.28
   CANONICAL_REPOSITORY: TCNOco/TcNo-Acc-Switcher
   SIGNPATH_ORGANIZATION_ID: a2a88c4e-72da-4d2c-925e-91f41aff9d77
   SIGNPATH_PROJECT_SLUG: TcNo-Acc-Switcher
@@ -121,7 +121,7 @@ jobs:
           Write-Host 'Release secrets are present.'
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           check-latest: true
@@ -134,12 +134,12 @@ jobs:
         run: go test ./internal/updatecheck
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - name: Install pnpm
-        run: npm install -g pnpm@11.0.8
+        run: npm install -g pnpm@11.22.0
 
       - name: Install Windows packaging tools
         shell: pwsh
@@ -203,7 +203,7 @@ jobs:
 
       - name: Sign executable with SignPath
         id: sign-exe
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
@@ -232,7 +232,7 @@ jobs:
 
       - name: Sign installer with SignPath
         id: sign-installer
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
