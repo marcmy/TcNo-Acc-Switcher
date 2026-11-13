@@ -21,7 +21,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tc-hib/winres v0.3.1
 	github.com/tidwall/gjson v1.20.0
-	github.com/tidwall/sjson v1.2.5
+	github.com/tidwall/sjson v1.2.7
 	github.com/wailsapp/wails/v3 v3.1.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0
