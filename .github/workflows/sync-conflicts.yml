@@ -19,6 +19,7 @@ jobs:
   check:
     if: github.repository == 'marcmy/TcNo-Acc-Switcher'
     runs-on: ubuntu-latest
+    environment: upstream-sync
     timeout-minutes: 15
 
     steps:
