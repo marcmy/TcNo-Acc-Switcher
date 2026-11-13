@@ -44,3 +44,29 @@ describe("Steam confirmations route", () => {
     expect(parseHash("#/steam/confirmations")).toEqual(route);
   });
 });
+
+describe("parseHash untrusted routes", () => {
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty"])(
+    "does not invoke inherited object method %s", (name) => {
+      expect(parseHash("#/" + name)).toBeNull();
+    },
+  );
+
+  it("keeps legitimate parameterized platform routes", () => {
+    expect(parseHash("#/platform/Steam%20Beta")).toEqual({
+      page: "platform",
+      platformName: "Steam Beta",
+    });
+  });
+});
+
+describe("parseHash handles malformed URLs", () => {
+  it.each(["#/%", "#/platform/%E0%A4%A", "#/steam/browser/%GG"])(
+    "returns null for invalid percent escapes", (hash) => {
+      expect(parseHash(hash)).toBeNull();
+    },
+  );
+  it("preserves the legacy preview route alias", () => {
+    expect(parseHash("#/test")).toEqual({ page: "preview-css" });
+  });
+});

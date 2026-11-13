@@ -75,17 +75,23 @@ func newCompositeAssetHandler(embedded fs.FS) http.Handler {
 		// Once per process: the directory does not come and go, and everything that
 		// writes into it creates what it needs itself.
 		ensureWwwroot(wwwroot)
-		diskPath := filepath.Join(wwwroot, filepath.FromSlash(upath))
-		wwwClean := filepath.Clean(wwwroot)
-		diskClean := filepath.Clean(diskPath)
-		rel, err := filepath.Rel(wwwClean, diskClean)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		// Resolve user-writable assets under an anchored filesystem root:
+		// a malicious traversal or symlink must not expose files outside wwwroot.
+		root, err := os.OpenRoot(wwwroot)
+		if err != nil {
 			embedHandler.ServeHTTP(w, r)
 			return
 		}
-		st, err := os.Stat(diskClean)
+		defer root.Close()
+		file, err := root.Open(filepath.FromSlash(upath))
+		if err != nil {
+			embedHandler.ServeHTTP(w, r)
+			return
+		}
+		defer file.Close()
+		st, err := file.Stat()
 		if err == nil && !st.IsDir() {
-			http.ServeFile(w, r, diskClean)
+			http.ServeContent(w, r, st.Name(), st.ModTime(), file)
 			return
 		}
 		embedHandler.ServeHTTP(w, r)

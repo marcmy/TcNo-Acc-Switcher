@@ -73,7 +73,43 @@ var loginMarkers = [][]byte{
 // an attribute, so a pattern matching only a bare `&` finds nothing on the real
 // page.
 var tradeURLPattern = regexp.MustCompile(
-	`https?://(?:www\.)?steamcommunity\.com/tradeoffer/new/?\?partner=([0-9]{1,10})(?:&amp;|&)token=([A-Za-z0-9_-]{1,32})`)
+	`^https?://(?:www\.)?steamcommunity\.com/tradeoffer/new/?\?partner=([0-9]{1,10})(?:&amp;|&)token=([A-Za-z0-9_-]{1,32})`)
+
+// findTradeURL extracts possible trade URLs from HTML, then validates the
+// candidate using an anchored pattern and both surrounding delimiters.
+// This does not accept a genuine Steam URL nested inside an attacker URL.
+func findTradeURL(body []byte) [][]byte {
+    for offset := 0; offset < len(body); {
+        relative := bytes.Index(body[offset:], []byte("http"))
+        if relative < 0 {
+            break
+        }
+        start := offset + relative
+        offset = start + len("http")
+        if start > 0 {
+            previous := body[start-1]
+            if previous != ' ' && previous != '\t' && previous != '\r' && previous != '\n' &&
+                previous != '"' && previous != '\'' && previous != '>' && previous != '(' && previous != '[' {
+                continue
+            }
+        }
+        loc := tradeURLPattern.FindSubmatchIndex(body[start:])
+        if loc == nil {
+            continue
+        }
+        end := start + loc[1]
+        if end < len(body) {
+            next := body[end]
+            if next != ' ' && next != '\t' && next != '\r' && next != '\n' &&
+                next != '"' && next != '\'' && next != '<' && next != ')' &&
+                next != '&' && next != ';' && next != '#' {
+                continue
+            }
+        }
+        return tradeURLPattern.FindSubmatch(body[start:end])
+    }
+    return nil
+}
 
 // Parse reads a trade-offer privacy page.
 func Parse(body []byte) Result {
@@ -87,7 +123,7 @@ func Parse(body []byte) Result {
 			return Result{Outcome: OutcomeNotSignedIn}
 		}
 	}
-	match := tradeURLPattern.FindSubmatch(body)
+	match := findTradeURL(body)
 	if match == nil {
 		return Result{}
 	}

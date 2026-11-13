@@ -69,3 +69,25 @@ func TestExportLegacyEncryptedRefusesAnEmptyPassword(t *testing.T) {
 		t.Fatal("an empty password produced an encrypted export")
 	}
 }
+
+func TestPadPKCS7ValidatesBlockSizeAndPreservesPadding(t *testing.T) {
+	for _, blockSize := range []int{0, -1, 256} {
+		if _, err := padPKCS7([]byte("test"), blockSize); err == nil {
+			t.Fatalf("accepted unsupported block size %d", blockSize)
+		}
+	}
+	padded, err := padPKCS7([]byte("test"), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(padded) != 16 || string(padded[:4]) != "test" || padded[15] != 12 {
+		t.Fatalf("unexpected padding: %v", padded)
+	}
+	padded, err = padPKCS7(make([]byte, 16), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(padded) != 32 || padded[31] != 16 {
+		t.Fatalf("full-block padding missing: %v", padded)
+	}
+}

@@ -1,0 +1,45 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "daily"
+      time: "12:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 100
+    cooldown:
+      default-days: 7
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "12:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 100
+    cooldown:
+      default-days: 7
+    # Hardware-key dependencies are deliberately pinned. Upgrading requires
+    # real-key enrol/unlock testing to protect existing vaults.
+    # See internal/steamguard/hwkey/pinned_versions_test.go.
+    ignore:
+      - dependency-name: "github.com/go-ctap/ctaphid"
+      - dependency-name: "github.com/go-ctap/winhello"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "12:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 100
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: "gradle"
+    directory: "/build/android"
+    schedule:
+      interval: "daily"
+      time: "12:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 100
+    cooldown:
+      default-days: 7
