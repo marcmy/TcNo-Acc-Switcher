@@ -13,7 +13,6 @@ import (
 	"TcNo-Acc-Switcher/internal/fsutil"
 	"TcNo-Acc-Switcher/internal/paths"
 	"TcNo-Acc-Switcher/internal/platform"
-	"TcNo-Acc-Switcher/internal/profileimage"
 	"TcNo-Acc-Switcher/internal/security"
 	"TcNo-Acc-Switcher/internal/stability"
 	"TcNo-Acc-Switcher/internal/stats"
@@ -117,14 +116,25 @@ func SaveCurrent(deps FlowDeps, platformKey, accountName string) (err error) {
 		return err
 	}
 
+	wasRunning := false
 	if fc.Descriptor.ExitBeforeInteract || fc.Descriptor.ExitBeforeSave {
+		wasRunning, err = winutil.ProcessImageRunning(fc.Descriptor.ExesToEnd)
+		if err != nil {
+			return err
+		}
 		if err := killPlatformExes(deps, fc); err != nil {
 			return err
 		}
 	}
 	platform.EmitActionBarStatusI18n("Status_ActionBar_SavingSession")
 
-	return saveCurrentAfterKill(deps, accountName, fc)
+	return runSaveWithRelaunch(wasRunning, fc.Settings.AutoStart,
+		func() error { return saveCurrentAfterKill(deps, accountName, fc) },
+		func() error { return launchBasicNoStatus(deps, platformKey, nil) },
+		func(err error) {
+			logFlow().Warn("launcher could not restart after saving", "platform", platformKey, "err", err)
+			reportFlowWarning("Toast_LaunchFailed", err.Error())
+		})
 }
 
 func saveCurrentAfterKill(deps FlowDeps, accountName string, fc FlowContext) error {
@@ -143,29 +153,7 @@ func saveCurrentAfterKill(deps FlowDeps, accountName string, fc FlowContext) err
 		return err
 	}
 	normalizeTagMaps(&idsFileData)
-	for existingUID, existingName := range idsFileData.IDs {
-		if strings.EqualFold(strings.TrimSpace(existingUID), strings.TrimSpace(uid)) {
-			continue
-		}
-		normalizedExisting := paths.WindowsFileName(strings.TrimSpace(existingName), 200)
-		if !strings.EqualFold(normalizedExisting, accountName) {
-			continue
-		}
-		delete(idsFileData.IDs, existingUID)
-		if idsFileData.LastUsed != nil {
-			delete(idsFileData.LastUsed, existingUID)
-		}
-		delete(idsFileData.AccountTags, existingUID)
-		if oldDestRoot, derr := accountCacheDir(fc.PlatformKey, existingName); derr == nil {
-			logFlow().Debug("remove superseded account cache", "path", oldDestRoot)
-			if rerr := security.RemoveAccountCache(fc.PlatformKey, existingUID, existingName, oldDestRoot); rerr != nil {
-				logFlow().Warn("remove superseded account cache", "path", oldDestRoot, "err", rerr)
-			}
-		}
-		_ = profileimage.DeleteCached(fc.PlatformKey, existingUID)
-	}
-	pruneUnusedTagDefinitions(&idsFileData)
-	if err := writeIdsFile(fc.PlatformKey, idsFileData); err != nil {
+	if err := validateAccountSaveName(idsFileData.IDs, uid, accountName); err != nil {
 		return err
 	}
 
@@ -179,12 +167,14 @@ func saveCurrentAfterKill(deps FlowDeps, accountName string, fc FlowContext) err
 	}
 	defer security.CleanupAccountSave(save)
 	destRoot := save.DestRoot
-	logFlow().Debug("clear account cache before save", "path", destRoot)
-	if err := fsutil.RemoveAllWithRetry(destRoot, 2*time.Second, os.RemoveAll); err != nil {
-		return fmt.Errorf("clear account cache %s: %w", destRoot, err)
-	}
 	if err := os.MkdirAll(destRoot, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", destRoot, err)
+	}
+
+	if isCredentialSessionFlow(fc) {
+		if err := saveCredentialSessionSnapshot(destRoot, uid, fc); err != nil {
+			return err
+		}
 	}
 
 	regDump := map[string]regDumpEntry{}
@@ -192,6 +182,9 @@ func saveCurrentAfterKill(deps FlowDeps, accountName string, fc FlowContext) err
 	platform.EmitActionBarStatusI18n("Status_CopyingFiles")
 	logLoginFilesOrder("saveCurrentAfterKill", fc)
 	for liveKey, cacheRel := range fc.Descriptor.LoginFiles {
+		if isCredentialSessionFlow(fc) {
+			continue
+		}
 		liveKey = strings.TrimSpace(liveKey)
 		if isREG(liveKey) {
 			platform.EmitActionBarStatusI18n("Status_UpdatingRegistry")
@@ -363,7 +356,7 @@ func saveCurrentAfterKill(deps FlowDeps, accountName string, fc FlowContext) err
 		}
 	}
 
-	if strings.EqualFold(strings.TrimSpace(fc.Descriptor.UniqueIdMethod), "REGKEY") {
+	if !isCredentialSessionFlow(fc) && strings.EqualFold(strings.TrimSpace(fc.Descriptor.UniqueIdMethod), "REGKEY") {
 		platform.EmitActionBarStatusI18n("Status_UpdatingRegistry")
 		uidKey := strings.TrimSpace(fc.Descriptor.UniqueIdFile)
 		enc := stripREG(uidKey)
@@ -485,6 +478,14 @@ func Login(deps FlowDeps, fc FlowContext, accountName string) error {
 				break
 			}
 		}
+	}
+	if isCredentialSessionFlow(fc) {
+		restore, cleanup, err := prepareCredentialSessionRestore(fc, accountName, uniqueID)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		return restore()
 	}
 	srcRoot, cleanup, err := security.AccountRestoreDir(fc.PlatformKey, uniqueID, accountName, normalSrcRoot)
 	if err != nil {
@@ -684,6 +685,9 @@ func Login(deps FlowDeps, fc FlowContext, accountName string) error {
 }
 
 func ClearCurrentLogin(deps FlowDeps, fc FlowContext) error {
+	if isCredentialSessionFlow(fc) {
+		return clearCredentialSession(fc)
+	}
 	ctx := fc.PathCtx
 	folder := fc.Folder
 	for _, p := range fc.Descriptor.PathListToClear {
@@ -770,7 +774,14 @@ func SwapTo(deps FlowDeps, platformKey, uniqueID string, extraLaunchArgs []strin
 	d := fc.Descriptor
 	ps := fc.Settings
 	folder := fc.Folder
-
+	ids, err := readIDs(platformKey)
+	if err != nil {
+		return err
+	}
+	accName, ok := ids[uniqueID]
+	if !ok || strings.TrimSpace(accName) == "" {
+		return fmt.Errorf("unknown account id")
+	}
 	platform.EmitActionBarStatusI18n("Status_GetUniqueId")
 	cur, curErr := ReadUniqueID(platformKey, d, folder)
 	if curErr == nil &&
@@ -780,21 +791,39 @@ func SwapTo(deps FlowDeps, platformKey, uniqueID string, extraLaunchArgs []strin
 		logFlow().Debug("swap short-circuit: already on requested account", "platform", platformKey, "uniqueID", uniqueID)
 		return nil
 	}
+	var restorePrepared func() error
+	if isCredentialSessionFlow(fc) && shouldRestoreSavedSession(fc, cur, uniqueID, curErr) {
+		var cleanup func()
+		restorePrepared, cleanup, err = prepareCredentialSessionRestore(fc, accName, uniqueID)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+	}
+	initialUniqueIDReadFailed := curErr != nil
 	if curErr != nil {
-		logFlow().Warn("swap: current unique ID unreadable; will proceed without saving previous session", "platform", platformKey, "err", curErr)
+		if isCredentialSessionFlow(fc) {
+			logFlow().Warn("swap: session unique ID unreadable; will retry after closing launcher", "platform", platformKey, "err", curErr)
+		} else {
+			logFlow().Warn("swap: current unique ID unreadable; will proceed without saving previous session", "platform", platformKey, "err", curErr)
+		}
 	}
 
 	if err := killPlatformExes(deps, fc); err != nil {
 		return err
 	}
 
-	ids, err := readIDs(platformKey)
-	if err != nil {
-		return err
+	if isCredentialSessionFlow(fc) && initialUniqueIDReadFailed {
+		cur, curErr = ReadUniqueID(platformKey, d, folder)
+		if curErr != nil {
+			logFlow().Warn("swap: session unique ID still unreadable after closing launcher", "platform", platformKey, "err", curErr)
+		}
 	}
 	if curErr == nil && strings.TrimSpace(cur) != "" {
 		if prevName, ok := ids[cur]; ok {
-			if !strings.EqualFold(strings.TrimSpace(cur), strings.TrimSpace(uniqueID)) {
+			needsFreshSnapshot := !strings.EqualFold(strings.TrimSpace(cur), strings.TrimSpace(uniqueID)) ||
+				(isCredentialSessionFlow(fc) && initialUniqueIDReadFailed)
+			if needsFreshSnapshot {
 				platform.EmitActionBarStatusI18n("Status_ActionBar_SavingSession")
 				if err := saveCurrentAfterKill(deps, prevName, fc); err != nil {
 					return wrapNeedsAdminIfPermission(err)
@@ -803,17 +832,20 @@ func SwapTo(deps FlowDeps, platformKey, uniqueID string, extraLaunchArgs []strin
 		}
 	}
 
-	platform.EmitActionBarStatusI18n("Status_ActionBar_ClearingSession")
-	if err := ClearCurrentLogin(deps, fc); err != nil {
-		return wrapNeedsAdminIfPermission(err)
-	}
-	accName, ok := ids[uniqueID]
-	if !ok || strings.TrimSpace(accName) == "" {
-		return fmt.Errorf("unknown account id")
-	}
-	platform.EmitActionBarStatusI18n("Status_ActionBar_RestoringAccount")
-	if err := Login(deps, fc, accName); err != nil {
-		return wrapNeedsAdminIfPermission(err)
+	if restorePrepared != nil && shouldRestoreSavedSession(fc, cur, uniqueID, curErr) {
+		platform.EmitActionBarStatusI18n("Status_ActionBar_RestoringAccount")
+		if err := restorePrepared(); err != nil {
+			return wrapNeedsAdminIfPermission(err)
+		}
+	} else if !isCredentialSessionFlow(fc) {
+		platform.EmitActionBarStatusI18n("Status_ActionBar_ClearingSession")
+		if err := ClearCurrentLogin(deps, fc); err != nil {
+			return wrapNeedsAdminIfPermission(err)
+		}
+		platform.EmitActionBarStatusI18n("Status_ActionBar_RestoringAccount")
+		if err := Login(deps, fc, accName); err != nil {
+			return wrapNeedsAdminIfPermission(err)
+		}
 	}
 	_ = touchLastUsed(fc.PlatformKey, uniqueID)
 	recordBasicTrayRecent(platformKey, uniqueID)
@@ -827,8 +859,8 @@ func SwapTo(deps FlowDeps, platformKey, uniqueID string, extraLaunchArgs []strin
 		return nil
 	}
 	platform.EmitActionBarStatusI18nPlatform("Status_StartingPlatform", platformKey)
-	if err := launchBasicNoStatus(deps, platformKey, extraLaunchArgs); err != nil {
-		return err
+	if !launchAfterCompletedSwitch(platformKey, func() error { return launchBasicNoStatus(deps, platformKey, extraLaunchArgs) }) {
+		return nil
 	}
 	tray.MaybeHideMainWindow()
 	return nil

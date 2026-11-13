@@ -95,7 +95,7 @@ func (s *Service) ServiceName() string { return "SteamBrowserService" }
 
 // Available reports whether this build can open session windows, so the UI can
 // hide the entry points rather than offering something that always fails.
-func (s *Service) Available() bool { return Supported() }
+func (s *Service) Available() bool { return Supported() && strings.TrimSpace(s.dataPath) != "" }
 
 // OpenBrowser opens a window signed in as accountID and returns its id.
 //
@@ -104,6 +104,9 @@ func (s *Service) Available() bool { return Supported() }
 func (s *Service) OpenBrowser(accountID, site, modalToken string) (OpenResult, error) {
 	if !Supported() {
 		return OpenResult{}, ErrUnsupportedPlatform
+	}
+	if !s.Available() {
+		return OpenResult{}, ErrStorageUnavailable
 	}
 	if s.source == nil {
 		return OpenResult{}, errors.New("steambrowser: no session source")
@@ -162,7 +165,15 @@ func (s *Service) OpenBrowser(accountID, site, modalToken string) (OpenResult, e
 	return OpenResult{SessionID: id, CapabilityRefreshRequired: session.CapabilityRefreshRequired}, nil
 }
 
-func (s *Service) openOnMainThread(id string, credentials WebSession, site Site, destination, profile string, cookies []Cookie) error {
+func (s *Service) openOnMainThread(id string, credentials WebSession, site Site, destination, profile string, cookies []Cookie, intercept ...func(string) bool) error {
+	provider := PlatformSteam
+	var onNavigate func(string) bool
+	if site == Site("battlenet-login") || site == Site("battlenet-account") {
+		provider = PlatformBattleNet
+	}
+	if len(intercept) != 0 {
+		onNavigate = intercept[0]
+	}
 	app := application.Get()
 	if app == nil || app.Window == nil {
 		return errors.New("steambrowser: application is not running")
@@ -193,17 +204,26 @@ func (s *Service) openOnMainThread(id string, credentials WebSession, site Site,
 	})
 
 	view, err := newView(ViewOptions{
-		NativeWindow: nativeWindow,
-		Profile:      profile,
-		DataPath:     s.dataPath,
-		DevTools:     s.devTools,
-		ReservedTop:  scaleForWindow(window, defaultChromeHeight),
-		Cookies:      cookies,
-		InitialURL:   destination,
-		Platform:     PlatformSteam,
-		OnState:      func(state ViewState) { s.publish(id, state) },
-		OnNewWindow:  func(url string) { s.handleNewWindow(id, url) },
-		OnDownload:   func(url string) { s.handleDownload(id, url) },
+		NativeWindow:        nativeWindow,
+		Profile:             profile,
+		DataPath:            s.dataPath,
+		DevTools:            s.devTools,
+		ReservedTop:         scaleForWindow(window, defaultChromeHeight),
+		Cookies:             cookies,
+		InitialURL:          destination,
+		Platform:            provider,
+		InterceptNavigation: onNavigate,
+		OnState:             func(state ViewState) { s.publish(id, state) },
+		OnNewWindow: func(url string) {
+			if provider == PlatformSteam {
+				s.handleNewWindow(id, url)
+			}
+		},
+		OnDownload: func(url string) {
+			if provider == PlatformSteam {
+				s.handleDownload(id, url)
+			}
+		},
 	})
 	if err != nil {
 		unwatch()
@@ -225,7 +245,7 @@ func (s *Service) openOnMainThread(id string, credentials WebSession, site Site,
 		steamID64: credentials.SteamID64,
 		account:   credentials.AccountName,
 		site:      site,
-		platform:  PlatformSteam,
+		platform:  provider,
 		profile:   profile,
 		view:      view,
 	})
@@ -402,11 +422,7 @@ func (s *Service) Stop(sessionID string) error {
 // State returns the last reported state, for a toolbar that has just mounted and
 // missed the events so far.
 func (s *Service) State(sessionID string) (ViewState, error) {
-	current, err := s.sessions.get(sessionID)
-	if err != nil {
-		return ViewState{}, err
-	}
-	return current.state, nil
+	return s.sessions.state(sessionID)
 }
 
 // Certificate describes the certificate for a window's current page.

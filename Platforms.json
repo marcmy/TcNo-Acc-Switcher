@@ -10,8 +10,9 @@
         "%AppData%\\Battlestate Games\\BsgLauncher\\settings": "settings"
       },
       "AllFilesRequired": true,
-      "UniqueIdFile": "settings",
-      "UniqueIdRegex": "EMAIL_REGEX"
+      "ExitBeforeInteract": true,
+      "ExitBeforeSave": true,
+      "UniqueIdFile": "JSON_SELECT::%AppData%\\Battlestate Games\\BsgLauncher\\settings::login"
     },
     "OBS Studio": {
       "Identifiers": [ "obs" ],
@@ -29,7 +30,7 @@
       "UniqueIdFile": "%AppData%\\obs-studio\\TcNoAccSwitcher-ID.instance",
       "UniqueIdMethod": "CREATE_ID_FILE"
     },
-    "Epic Games": {
+    "Epic Games (Legacy)": {
       "Identifiers": [ "e", "epg", "epic", "epicgames" ],
       "ExeLocationDefault": "%ProgramFiles(x86)%\\Epic Games\\Launcher\\Portal\\Binaries\\Win32\\EpicGamesLauncher.exe",
       "GetPathFromShortcutNamed": "Epic Games Launcher",
@@ -53,6 +54,40 @@
       },
       "UniqueIdFile": "HKCU\\Software\\Epic Games\\Unreal Engine\\Identifiers:AccountId",
       "UniqueIdMethod": "REGKEY"
+    },
+    "Epic Games": {
+      "Identifiers": [ "eg", "epgn", "newepic", "newepicgames" ],
+      "ExeLocationDefault": "%LocalAppData%\\Epic Games\\Launcher\\EpicGamesLauncher.exe",
+      "GetPathFromShortcutNamed": "Epic Games Launcher",
+      "ExesToEnd": [ "EpicGamesLauncher.exe", "EpicWebHelper.exe" ],
+      "PathListToClear": [ "SAME_AS_LOGIN_FILES", "%LocalAppData%\\com.epicgames.eglv2\\EBWebView" ],
+      "LoginFiles": {
+        "%LocalAppData%\\com.epicgames.eglv2\\auth": "auth"
+      },
+      "AllFilesRequired": true,
+      "ExitBeforeInteract": true,
+      "ExitBeforeSave": true,
+      "Extras": {
+        "CredentialSession": {
+          "Target": "LegacyGeneric:target=credentials.com.epicgames.eglv2.prod",
+          "SnapshotFile": "epic-new-launcher-session.dpapi",
+          "JSONFiles": [ "auth.json" ],
+          "RecoveryCopies": 3
+        },
+        "BuiltInUsernameFile": "JSON_SELECT::%LocalAppData%\\com.epicgames.eglv2\\auth\\auth.json::prod.account_info.display_name",
+        "ClosingMethod": "TaskKill",
+        "CachePaths": [
+          "%LocalAppData%\\com.epicgames.eglv2\\EBWebView",
+          "%LocalAppData%\\Epic Games\\Epic Online Services\\UI Helper\\Cache\\Cache",
+          "%LocalAppData%\\Epic Games\\Epic Online Services\\UI Helper\\Cache\\GPUCache",
+          "%LocalAppData%\\Epic Games\\EOSOverlay\\BrowserCache\\Cache"
+        ],
+        "BackupFolders": {
+          "%LocalAppData%\\com.epicgames.eglv2\\auth": "auth"
+        }
+      },
+      "UniqueIdFile": "JSON_SELECT::%LocalAppData%\\com.epicgames.eglv2\\auth\\access-token-prod.dpapi::account_id",
+      "UniqueIdMethod": "DPAPI_JSON_SELECT"
     },
     "GOG Galaxy": {
       "Identifiers": [ "g", "gog", "gog2" ],
@@ -581,6 +616,7 @@
       "UniqueIdFile": "%AppData%\\Battle.net\\Battle.net.config::Client.SavedAccountNames",
       "UniqueIdMethod": "JSON_SELECT_FIRST,",
       "Extras": {
+        "AuthenticatorProvider": "battlenet",
         "ClosingMethod": "TaskKill",
         "BuiltInUsernameFile": "SQLITE:%LocalAppData%\\Battle.net\\CachedData.db|SELECT battle_tag FROM login_cache WHERE account_id_lo = '%BuiltInUserId%'",
         "BuiltInUserId": "LATEST_MODIFIED_FILE:%LocalAppData%\\Battle.net\\Logs\\battle.net-*.log"
@@ -707,5 +743,5 @@
   },
   "Platform-WIP": {
   },
-  "Version": "4.0.8"
+  "Version": "4.0.11"
 }

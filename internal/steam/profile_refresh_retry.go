@@ -38,12 +38,6 @@ var profileRefreshRetryDelays = []time.Duration{
 	15 * time.Minute,
 }
 
-// profileRefreshQuietFailures is how many consecutive unreachable rounds pass
-// before the tiles say so. The first one is the resume-from-sleep case and
-// clears itself within the minute, so reporting it is noise the user cannot act
-// on; a network that is genuinely gone still gets said out loud.
-const profileRefreshQuietFailures = 2
-
 // profileRefreshRetryDelay is the wait after `failures` consecutive unreachable
 // rounds, counting the first as 1.
 func profileRefreshRetryDelay(failures int) time.Duration {
@@ -69,6 +63,14 @@ func fetchProfileXMLWithRetry(
 
 	var lastErr error
 	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return ProfileXMLFields{}, err
+		}
+		// The deadline's cancellation callback may still be queued when a retry
+		// timer fires at exactly the same instant.
+		if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+			return ProfileXMLFields{}, context.DeadlineExceeded
+		}
 		attemptCtx := ctx
 		cancel := func() {}
 		if policy.AttemptTimeout > 0 {

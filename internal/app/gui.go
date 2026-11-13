@@ -152,6 +152,13 @@ func githubUpdaterConfig(guiSettings platform.AppSettings) github.Config {
 
 func RunGUI(params RunGUIParams) {
 	parsed := params.Parsed
+	if path := parsed.GoroutineLeakProfile; path != "" {
+		defer func() {
+			if err := writeGoroutineLeakProfile(path); err != nil {
+				slog.Warn("goroutine leak report failed", "error", err)
+			}
+		}()
+	}
 	guiSettings := params.GuiSettings
 	disp := params.Dispatch
 
@@ -293,7 +300,11 @@ func RunGUI(params RunGUIParams) {
 	if !platform.InGamescopeSession() {
 		registerWindowPlacement(wailsApp, win, disp.PlatformSvc, platform.SavedWindowPlacement(guiSettings))
 	}
-	applyGameModeZoom(win)
+	applyInterfaceScale(win, guiSettings.InterfaceScale)
+	platform.SetInterfaceScaleHandler(func(scale float64) {
+		application.InvokeAsync(func() { applyInterfaceScale(win, scale) })
+	})
+	defer platform.SetInterfaceScaleHandler(nil)
 	screenprivacy.Follow(win)
 	registerNotificationResponseHandler(wailsApp, win, notifier)
 	registerControllerInputGating(win, params.ControllerInput, !winOpts.Hidden)

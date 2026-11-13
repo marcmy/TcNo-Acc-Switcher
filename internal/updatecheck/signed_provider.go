@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"TcNo-Acc-Switcher/internal/appclient"
+
 	"github.com/wailsapp/wails/v3/pkg/updater"
 	"github.com/wailsapp/wails/v3/pkg/updater/providers/github"
 )
@@ -19,9 +21,17 @@ type signedGitHubProvider struct {
 	repo      string
 	sigSuffix string
 	apiBase   string
+	client    *http.Client
 }
 
 func NewSignedGitHubProvider(cfg github.Config, sigSuffix string) (updater.Provider, error) {
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = appclient.Shared
+	} else {
+		client := *cfg.HTTPClient
+		client.Transport = appclient.OfflineTransport(client.Transport)
+		cfg.HTTPClient = &client
+	}
 	inner, err := github.New(cfg)
 	if err != nil {
 		return nil, err
@@ -36,12 +46,23 @@ func NewSignedGitHubProvider(cfg github.Config, sigSuffix string) (updater.Provi
 		repo:      parts[1],
 		sigSuffix: sigSuffix,
 		apiBase:   "https://api.github.com",
+		client:    cfg.HTTPClient,
 	}, nil
+}
+
+func (p *signedGitHubProvider) httpClient() *http.Client {
+	if p.client != nil {
+		return p.client
+	}
+	return appclient.Shared
 }
 
 func (p *signedGitHubProvider) Name() string { return p.inner.Name() }
 
 func (p *signedGitHubProvider) Check(ctx context.Context, req updater.CheckRequest) (*updater.Release, error) {
+	if appclient.IsOfflineMode() {
+		return nil, appclient.ErrOfflineMode
+	}
 	r, err := p.inner.Check(ctx, req)
 	if err != nil || r == nil {
 		return r, err
@@ -64,6 +85,9 @@ func (p *signedGitHubProvider) Check(ctx context.Context, req updater.CheckReque
 }
 
 func (p *signedGitHubProvider) Download(ctx context.Context, r *updater.Release, dst io.Writer, onProgress func(written, total int64)) error {
+	if appclient.IsOfflineMode() {
+		return appclient.ErrOfflineMode
+	}
 	return p.inner.Download(ctx, r, dst, onProgress)
 }
 
@@ -82,7 +106,7 @@ func (p *signedGitHubProvider) fetchSignature(ctx context.Context, version, arti
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "TcNo-Acc-Switcher-Updater")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.httpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +151,7 @@ func (p *signedGitHubProvider) downloadSig(ctx context.Context, url string) ([]b
 	}
 	req.Header.Set("User-Agent", "TcNo-Acc-Switcher-Updater")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := p.httpClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

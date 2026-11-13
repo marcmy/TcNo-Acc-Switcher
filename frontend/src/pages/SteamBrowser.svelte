@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as AppEvents from "../../bindings/events/index.js";
   /**
    * The toolbar for a Steam Guard session window.
    *
@@ -47,8 +48,8 @@
   $: addressHint = !state.url
     ? ""
     : state.trusted
-      ? $t("SteamBrowser_Trusted_Hint", { host: state.host })
-      : $t("SteamBrowser_Untrusted_Hint", { host: state.host });
+      ? $t("AccountBrowser_Trusted_Hint", { host: state.host })
+      : $t("AccountBrowser_Untrusted_Hint", { host: state.host });
 
   function report(next: ViewState): void {
     const moved = next.url !== state.url;
@@ -146,7 +147,7 @@
     observer = new ResizeObserver(reportHeight);
     if (chrome) observer.observe(chrome);
 
-    offState = Events.On("steambrowser:state", (event: { data: ViewState }) => {
+    offState = Events.On(AppEvents.SteambrowserState, (event: { data: ViewState }) => {
       if (event?.data) report(event.data);
     });
     // The window may have navigated before this component mounted.

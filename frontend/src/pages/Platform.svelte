@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as AppEvents from "../../bindings/events/index.js";
   import { get } from "svelte/store";
   import PlatformAccountsBase from "../components/PlatformAccountsBase.svelte";
   import type { PlatformAccountAdapter } from "../components/PlatformAccountAdapter";
@@ -17,6 +18,12 @@
   import { formatToastWithError } from "../lib/formatWailsError";
   import { offerRestartIfNeedsAdmin, isNeedsAdminError } from "../lib/adminFlow";
   import { openPrompt } from "../stores/modal";
+  import { onDestroy } from "svelte";
+  import { openAuthenticator } from "../lib/authenticators";
+  import { publishAuthenticatorAction, clearAuthenticatorAction } from "../stores/authenticatorAction";
+  import { Call } from "@wailsio/runtime";
+  import { buildBattleNetAuthenticatorMenu } from "../lib/battleNetAuthenticatorMenu";
+  import { battleNetCall, battleNetAuthenticatorsNow, refreshBattleNetAuthenticators, withBattleNetView } from "../lib/battleNetAuthenticatorBridge";
   import "../styles/platformAccountsShared.scss";
 
   const PROFILE_FALLBACK = "/img/BasicDefault.webp";
@@ -33,6 +40,35 @@
   };
 
   export let name: string;
+
+  let authenticatorProvider = "";
+  let disposed = false;
+  async function loadAuthenticatorProvider(platformName: string) {
+    authenticatorProvider="";
+    publishAuthenticatorAction(platformName, "");
+    try {
+      const provider = await Call.ByName("TcNo-Acc-Switcher/internal/basic.BasicService.GetAuthenticatorProvider", platformName);
+      if (!disposed && name === platformName) {
+        authenticatorProvider = provider;
+        publishAuthenticatorAction(platformName, provider);
+        if (provider === "battlenet") void refreshBattleNetAuthenticators();
+      }
+    } catch { if (!disposed && name === platformName) clearAuthenticatorAction(platformName); }
+  }
+  onDestroy(() => { disposed = true; clearAuthenticatorAction(name); });
+  $: void loadAuthenticatorProvider(name);
+  function authenticatorMenu(account?: BasicRow): MenuItemDef[] {
+    if (authenticatorProvider !== "battlenet") return [];
+    void refreshBattleNetAuthenticators();
+    return [buildBattleNetAuthenticatorMenu(account?.uniqueId ?? "", battleNetAuthenticatorsNow(), get(t), {
+      open: (serial, screen) => { void openAuthenticator(authenticatorProvider, account?.uniqueId ?? "", account?.displayName ?? "", serial, screen); },
+      copy: serial => { void withBattleNetView(token => battleNetCall("CopyBattleNetCodeForAccount", serial, account?.uniqueId ?? "", token))
+        .then(() => pushToast({ type: "success", message: get(t)("Authenticator_Copied") }))
+        .catch(cause => pushToast({ type: "error", message: formatToastWithError(get(t)("Toast_CopyFailed"), cause) })); },
+      browse: serial => { void withBattleNetView(token => battleNetCall("OpenBattleNetAccount", serial, token))
+        .catch(cause => pushToast({ type: "error", message: formatToastWithError(get(t)("Authenticator_Browse"), cause) })); },
+    })];
+  }
 
   $: adapter = {
     platformKey: name,
@@ -102,6 +138,7 @@
     closePlatform: () => BasicService.ClosePlatform(name),
 
     buildMenu: (_a, shared) => [
+      ...authenticatorMenu(_a),
       shared.swapTo,
       shared.changeName,
       shared.createShortcut,
@@ -111,8 +148,9 @@
       shared.tags,
       shared.gameStats,
     ].filter((x): x is MenuItemDef => x != null),
+    buildBackgroundMenu: () => authenticatorMenu(),
 
-    updateEventName: "basic-account-image-updated",
+    updateEventName: AppEvents.BasicAccountImageUpdated,
     buildPatch: (raw: unknown) =>
       raw instanceof AccountImagePatch
         ? raw
@@ -168,6 +206,7 @@
       try { return await BasicService.SuggestedSaveAccountName(name); }
       catch { return ""; }
     },
+    onAfterLoad: () => { if (authenticatorProvider === "battlenet") void refreshBattleNetAuthenticators(); },
   } satisfies PlatformAccountAdapter<BasicRow>;
 </script>
 

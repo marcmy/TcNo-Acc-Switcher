@@ -43,9 +43,16 @@ type windowsView struct {
 	canBack bool
 	canFwd  bool
 
-	onState     func(ViewState)
-	onNewWindow func(string)
-	onDownload  func(string)
+	onState                func(ViewState)
+	onNewWindow            func(string)
+	onDownload             func(string)
+	interceptNavigation    func(string) bool
+	accountNameHandler     *webview2.ICoreWebView2ExecuteScriptCompletedHandler
+	accountNameResult      func(BattleNetAccountIdentity, error)
+	navigationVersion      uint64
+	accountNameVersion     uint64
+	accountNamePageAllowed func(string) bool
+	accountNameParse       func(string) (BattleNetAccountIdentity, error)
 
 	// handlers holds the event-handler objects for the view's lifetime.
 	//
@@ -67,11 +74,12 @@ func newView(options ViewOptions) (View, error) {
 	}
 
 	view := &windowsView{
-		platform:    options.Platform,
-		hostWindow:  options.NativeWindow,
-		onState:     options.OnState,
-		onNewWindow: options.OnNewWindow,
-		onDownload:  options.OnDownload,
+		platform:            options.Platform,
+		hostWindow:          options.NativeWindow,
+		onState:             options.OnState,
+		onNewWindow:         options.OnNewWindow,
+		onDownload:          options.OnDownload,
+		interceptNavigation: options.InterceptNavigation,
 	}
 
 	chromium := webview2.NewChromium()
@@ -396,6 +404,10 @@ func (v *windowsView) raise() {
 
 func (v *windowsView) Close() {
 	v.closeOnce.Do(func() {
+		if complete := v.accountNameResult; complete != nil {
+			v.accountNameResult = nil
+			complete(BattleNetAccountIdentity{}, ErrNoSuchWindow)
+		}
 		if v.chromium != nil {
 			v.chromium.Close()
 			v.chromium = nil
@@ -434,13 +446,79 @@ func (v *windowsView) DocumentTitleChanged(*webview2.ICoreWebView2, uintptr) uin
 func (v *windowsView) NavigationStarting(_ *webview2.ICoreWebView2, raw *webview2.IUnknown) uintptr {
 	if args := webview2.NavigationStartingArgs(raw); args != nil {
 		url, err := args.GetUri()
+		if err == nil && v.interceptNavigation != nil && v.interceptNavigation(url) {
+			_ = args.PutCancel(true)
+			return 0
+		}
 		if err == nil && !navigableScheme(url) {
 			_ = args.PutCancel(true)
 			return 0
 		}
 	}
+	v.navigationVersion++
 	loading := true
 	v.refresh(&loading)
+	return 0
+}
+
+func (v *windowsView) readBattleNetAccountName(complete func(BattleNetAccountIdentity, error)) error {
+	return v.readBattleNetIdentity(battleNetAccountNameScript, battleNetSecurityPage, parseBattleNetAccountIdentity, complete)
+}
+
+func (v *windowsView) readBattleNetLoginIdentity(complete func(BattleNetAccountIdentity, error)) error {
+	return v.readBattleNetIdentity(battleNetLoginIdentityScript, battleNetLoginPage, parseBattleNetLoginIdentity, complete)
+}
+
+func (v *windowsView) readBattleNetIdentity(script string, allowed func(string) bool, parse func(string) (BattleNetAccountIdentity, error), complete func(BattleNetAccountIdentity, error)) error {
+	if v.platform != PlatformBattleNet || v.chromium == nil || v.accountNameResult != nil {
+		return errBattleNetAccountName
+	}
+	view := v.chromium.GetWebView()
+	if view == nil {
+		return ErrNoSuchWindow
+	}
+	source, err := view.GetSource()
+	if err != nil || !allowed(source) {
+		complete(BattleNetAccountIdentity{}, err)
+		return nil
+	}
+	if v.accountNameHandler == nil {
+		v.accountNameHandler = webview2.NewICoreWebView2ExecuteScriptCompletedHandler(v)
+		v.handlers = append(v.handlers, v.accountNameHandler)
+	}
+	v.accountNameResult = complete
+	v.accountNameVersion = v.navigationVersion
+	v.accountNamePageAllowed = allowed
+	v.accountNameParse = parse
+	if err := view.ExecuteScript(script, v.accountNameHandler); err != nil {
+		v.accountNameResult = nil
+		return errBattleNetAccountName
+	}
+	return nil
+}
+
+func (v *windowsView) ExecuteScriptCompleted(errorCode uintptr, raw *uint16) uintptr {
+	complete := v.accountNameResult
+	v.accountNameResult = nil
+	if complete == nil {
+		return 0
+	}
+	if errorCode != 0 || v.chromium == nil || v.accountNameVersion != v.navigationVersion {
+		complete(BattleNetAccountIdentity{}, errBattleNetAccountName)
+		return 0
+	}
+	view := v.chromium.GetWebView()
+	if view == nil {
+		complete(BattleNetAccountIdentity{}, ErrNoSuchWindow)
+		return 0
+	}
+	source, err := view.GetSource()
+	if err != nil || v.accountNamePageAllowed == nil || !v.accountNamePageAllowed(source) {
+		complete(BattleNetAccountIdentity{}, errBattleNetAccountName)
+		return 0
+	}
+	identity, err := v.accountNameParse(webview2.UTF16PtrToString(raw))
+	complete(identity, err)
 	return 0
 }
 
