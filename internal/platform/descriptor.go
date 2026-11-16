@@ -15,26 +15,43 @@ type CredentialSessionDescriptor struct {
 	RecoveryCopies int      `json:"RecoveryCopies,omitempty"`
 }
 
+// ConfigOverride sets a scalar value in a launcher-owned JSON or YAML file.
+// Overrides run before close, after restore and before a managed launch.
+type ConfigOverride struct {
+	File   string `json:"File"`
+	Format string `json:"Format"`
+	Path   string `json:"Path"`
+	Value  any    `json:"Value"`
+}
+
 type DescriptorExtras struct {
-	AuthenticatorProvider   string                       `json:"AuthenticatorProvider,omitempty"`
-	CredentialSession       *CredentialSessionDescriptor `json:"CredentialSession,omitempty"`
-	CachePaths              []string                     `json:"CachePaths,omitempty"`
-	BackupFolders           map[string]string            `json:"BackupFolders,omitempty"`
-	Variables               map[string]string            `json:"variables,omitempty"`
-	ProfilePicPath          string                       `json:"ProfilePicPath,omitempty"`
-	ProfilePicFromFile      string                       `json:"ProfilePicFromFile,omitempty"`
-	ProfilePicRegex         string                       `json:"ProfilePicRegex,omitempty"`
-	BuiltInUsernameFile     string                       `json:"BuiltInUsernameFile,omitempty"`
-	BuiltInProfileImageFile string                       `json:"BuiltInProfileImageFile,omitempty"`
-	BuiltInUserId           string                       `json:"BuiltInUserId,omitempty"`
-	ShortcutFolders         []string                     `json:"ShortcutFolders,omitempty"`
-	ShortcutIgnore          []string                     `json:"ShortcutIgnore,omitempty"`
-	ShortcutIncludeMainExe  *bool                        `json:"ShortcutIncludeMainExe,omitempty"`
-	SearchStartMenuForIcon  bool                         `json:"SearchStartMenuForIcon,omitempty"`
-	BackupFileTypesInclude  []string                     `json:"BackupFileTypesInclude,omitempty"`
-	BackupFileTypesIgnore   []string                     `json:"BackupFileTypesIgnore,omitempty"`
-	ClosingMethod           string                       `json:"ClosingMethod,omitempty"`
-	ForceClosingMethod      bool                         `json:"ForceClosingMethod,omitempty"`
+	ConfigOverrides       []ConfigOverride             `json:"ConfigOverrides,omitempty"`
+	AuthenticatorProvider string                       `json:"AuthenticatorProvider,omitempty"`
+	CredentialSession     *CredentialSessionDescriptor `json:"CredentialSession,omitempty"`
+	CachePaths            []string                     `json:"CachePaths,omitempty"`
+	BackupFolders         map[string]string            `json:"BackupFolders,omitempty"`
+	Variables             map[string]string            `json:"variables,omitempty"`
+	ProfilePicPath        string                       `json:"ProfilePicPath,omitempty"`
+	ProfilePicFromFile    string                       `json:"ProfilePicFromFile,omitempty"`
+	ProfilePicRegex       string                       `json:"ProfilePicRegex,omitempty"`
+	BuiltInUsernameFile   string                       `json:"BuiltInUsernameFile,omitempty"`
+	// Select a string from JSON objects embedded in browser cache files.
+	BuiltInUsernameJSONPath string `json:"BuiltInUsernameJSONPath,omitempty"`
+	// When set, this JSON field must equal the launcher's current unique ID.
+	BuiltInUsernameJSONMatchPath string `json:"BuiltInUsernameJSONMatchPath,omitempty"`
+	BuiltInProfileImageFile      string `json:"BuiltInProfileImageFile,omitempty"`
+	// Additional cache patterns, scanned together with the primary pattern by recency.
+	BuiltInUsernameFileFallbacks     []string `json:"BuiltInUsernameFileFallbacks,omitempty"`
+	BuiltInProfileImageFileFallbacks []string `json:"BuiltInProfileImageFileFallbacks,omitempty"`
+	BuiltInUserId                    string   `json:"BuiltInUserId,omitempty"`
+	ShortcutFolders                  []string `json:"ShortcutFolders,omitempty"`
+	ShortcutIgnore                   []string `json:"ShortcutIgnore,omitempty"`
+	ShortcutIncludeMainExe           *bool    `json:"ShortcutIncludeMainExe,omitempty"`
+	SearchStartMenuForIcon           bool     `json:"SearchStartMenuForIcon,omitempty"`
+	BackupFileTypesInclude           []string `json:"BackupFileTypesInclude,omitempty"`
+	BackupFileTypesIgnore            []string `json:"BackupFileTypesIgnore,omitempty"`
+	ClosingMethod                    string   `json:"ClosingMethod,omitempty"`
+	ForceClosingMethod               bool     `json:"ForceClosingMethod,omitempty"`
 	// QuitArgs are passed to the platform's own executable to ask it to shut itself down,
 	// e.g. "-shutdown" for Steam. Use it when the platform ignores WM_CLOSE - a launcher that
 	// minimises to tray on close never exits, so the graceful window expires on every switch
@@ -52,16 +69,20 @@ type Descriptor struct {
 	GetPathFromShortcutNamed string                 `json:"GetPathFromShortcutNamed,omitempty"`
 	ExesToEnd                []string               `json:"ExesToEnd,omitempty"`
 	PathListToClear          []string               `json:"PathListToClear,omitempty"`
-	LoginFiles               map[string]string      `json:"LoginFiles,omitempty"`
-	AllFilesRequired         bool                   `json:"AllFilesRequired"`
-	DisabledByDefault        bool                   `json:"DisabledByDefault"`
-	ExitBeforeInteract       bool                   `json:"ExitBeforeInteract"`
-	ExitBeforeSave           bool                   `json:"ExitBeforeSave"`
-	RegDeleteOnClear         bool                   `json:"RegDeleteOnClear"`
-	UniqueIdFile             string                 `json:"UniqueIdFile,omitempty"`
-	UniqueIdMethod           string                 `json:"UniqueIdMethod,omitempty"`
-	UniqueIdRegex            string                 `json:"UniqueIdRegex,omitempty"`
-	Extras                   DescriptorExtras       `json:"Extras,omitempty"`
+	// Exact transient login files reset only by Add New, never by a swap.
+	AddNewFilesToClear []string          `json:"AddNewFilesToClear,omitempty"`
+	LoginFiles         map[string]string `json:"LoginFiles,omitempty"`
+	AllFilesRequired   bool              `json:"AllFilesRequired"`
+	// Each pattern must contain a nonempty login file before a session can be saved or restored.
+	RequiredLoginFiles []string         `json:"RequiredLoginFiles,omitempty"`
+	DisabledByDefault  bool             `json:"DisabledByDefault"`
+	ExitBeforeInteract bool             `json:"ExitBeforeInteract"`
+	ExitBeforeSave     bool             `json:"ExitBeforeSave"`
+	RegDeleteOnClear   bool             `json:"RegDeleteOnClear"`
+	UniqueIdFile       string           `json:"UniqueIdFile,omitempty"`
+	UniqueIdMethod     string           `json:"UniqueIdMethod,omitempty"`
+	UniqueIdRegex      string           `json:"UniqueIdRegex,omitempty"`
+	Extras             DescriptorExtras `json:"Extras,omitempty"`
 }
 
 // ParseDescriptor expands PathListToClear entries equal to SAME_AS_LOGIN_FILES into LoginFiles keys.
