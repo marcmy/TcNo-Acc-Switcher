@@ -183,19 +183,20 @@ func (p *PlatformService) SetProtocolEnabled(enabled bool) error {
 	}
 	self = filepath.Clean(self)
 
-	err = p.withSettingsWrite(func(s *AppSettings) error {
+	// Touch the registry first: a failed registration must not leave the
+	// setting saved as enabled.
+	if enabled {
+		if err := winutil.RegisterProtocol(self); err != nil {
+			return err
+		}
+	} else {
+		_ = winutil.UnregisterProtocol()
+	}
+
+	return p.withSettingsWrite(func(s *AppSettings) error {
 		s.ProtocolEnabled = enabled
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-
-	if enabled {
-		return winutil.RegisterProtocol(self)
-	}
-	_ = winutil.UnregisterProtocol()
-	return nil
 }
 
 func (p *PlatformService) SetStatsEnabled(enabled bool) error {
