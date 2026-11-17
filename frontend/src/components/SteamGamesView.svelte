@@ -32,7 +32,10 @@
   import type { MenuItemDef } from "../stores/contextMenu";
   import { formatToastWithError } from "../lib/formatWailsError";
   import { reportLaunchFailure } from "../lib/adminFlow";
+  import { getCapabilities } from "../stores/osCapabilities";
   import { isProfileVideoUrl } from "../lib/profileImageDrop";
+  import { pushShortcutCreatedToast } from "../lib/shortcutToast";
+  import * as Shortcuts from "wails-shortcuts-service";
   import {
     chunkOwnedGames,
     filterOwnedGames,
@@ -79,6 +82,7 @@
     steamId64: string;
     displayName: string;
     avatarUrl: string;
+    accountLogin: string;
     inVault: boolean;
   };
 
@@ -116,6 +120,7 @@
 
   $: accountById = new Map(accounts.map((a) => [a.steamId64, a]));
   $: hasVaultAccounts = accounts.some((a) => a.inVault);
+  $: hasKnownOwners = games.some((game) => game.owners.length > 0);
   $: sortedGames = sortOwnedGames(games, sortKind);
   $: scheduleFilter(query);
   $: visibleGames = filterOwnedGames(sortedGames, appliedQuery);
@@ -233,6 +238,7 @@
           || (row.accountName ?? "").trim()
           || row.steamId64,
         avatarUrl,
+        accountLogin: (row.accountName ?? "").trim(),
         inVault: (row.hasSteamGuard ?? false) || (row.steamGuardLoginOnly ?? false),
       };
     });
@@ -305,18 +311,25 @@
   }
 
   async function pickAccount(steamId64: string): Promise<void> {
-    if (busy) return;
-    const account = accountById.get(steamId64);
-    if (!account) return;
     const launch = get(steamGamesLaunchOnSwitch);
     const game = selectedGame;
     if (launch && !game) {
       pushToast({ type: "info", message: $t("Steam_Games_PickGameFirst"), duration: 5000 });
       return;
     }
+    await switchOrLaunchAccount(steamId64, game, launch);
+  }
+
+  async function switchOrLaunchAccount(
+    steamId64: string,
+    game: OwnedGameRow | null,
+    launch: boolean,
+  ): Promise<void> {
+    if (busy) return;
+    const account = accountById.get(steamId64);
     busy = true;
     platformActionBusy.set({ busy: true, platformKey: name });
-    actionBarStatus.set($t("Status_SelectedAccount", { name: account.displayName }));
+    actionBarStatus.set($t("Status_SelectedAccount", { name: account?.displayName ?? steamId64 }));
     try {
       if (launch && game) {
         await steamSwitchCoordinator.loginAndLaunchGame(steamId64, -1, game.appId);
@@ -336,6 +349,28 @@
       busy = false;
       platformActionBusy.set({ busy: false, platformKey: "" });
       touchStatus();
+    }
+  }
+
+  async function createGameShortcut(appId: string, steamId64: string): Promise<void> {
+    const game = games.find((row) => row.appId === appId);
+    if (!game) return;
+    const account = accountById.get(steamId64);
+    try {
+      const res = await Shortcuts.CreateSteamGameAccountShortcut(
+        steamId64,
+        account?.displayName ?? steamId64,
+        account?.accountLogin ?? "",
+        game.appId,
+        game.name,
+      );
+      pushShortcutCreatedToast(res, $t, 8000);
+    } catch (e) {
+      pushToast({
+        type: "error",
+        message: formatToastWithError($t("Toast_CreateShortcutFailed"), e),
+        duration: 8000,
+      });
     }
   }
 
@@ -389,10 +424,37 @@
    * library would put Refresh games out of reach.
    */
   function gameMenu(appId: string): () => MenuItemDef[] {
-    return () => [
-      { label: $t("Steam_Games_OpenStore"), action: () => { void openStorePage(appId); } },
-      ...backgroundMenu(),
-    ];
+    return () => {
+      const game = games.find((row) => row.appId === appId);
+      const ownerItems = (game?.owners ?? []).map((steamId64) => ({
+        label: ownerDisplayName(accountById, steamId64),
+        steamId64,
+      }));
+      const items: MenuItemDef[] = [];
+      if (game && ownerItems.length > 0) {
+        items.push({
+          label: $t("Steam_Games_LaunchOnSwitch"),
+          children: ownerItems.map(({ label, steamId64 }) => ({
+            label,
+            action: () => { void switchOrLaunchAccount(steamId64, game, true); },
+          })),
+        });
+        if (getCapabilities().shortcuts) {
+          items.push({
+            label: $t("Context_CreateShortcut"),
+            children: ownerItems.map(({ label, steamId64 }) => ({
+              label,
+              action: () => { void createGameShortcut(appId, steamId64); },
+            })),
+          });
+        }
+      }
+      items.push(
+        { label: $t("Steam_Games_OpenStore"), action: () => { void openStorePage(appId); } },
+        ...backgroundMenu(),
+      );
+      return items;
+    };
   }
 
   function backgroundMenu(): MenuItemDef[] {
@@ -499,13 +561,13 @@
     {#if loadError}
       <p class="platform-accounts-hint">{loadError}</p>
     {/if}
-    {#if accountsLoaded && !hasVaultAccounts}
+    {#if accountsLoaded && !hasVaultAccounts && !hasKnownOwners}
       <p class="platform-accounts-hint steamGames__intro">{$t("Steam_Games_NoVaultAccounts")}</p>
     {/if}
     {#if visibleGames.length === 0}
       {#if sortedGames.length > 0}
         <p class="platform-accounts-hint">{$t("Steam_Games_SearchNoMatch")}</p>
-      {:else if !gamesLoading && !loadError && accountsLoaded && hasVaultAccounts}
+      {:else if !gamesLoading && !loadError && accountsLoaded}
         <p class="platform-accounts-hint">{$t("Steam_Games_Empty")}</p>
       {/if}
     {:else}

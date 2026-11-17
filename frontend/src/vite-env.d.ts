@@ -49,6 +49,14 @@ declare module "wails-shortcuts-service" {
     gameFileName: string,
   ): CancellablePromise<ShortcutResult>
 
+  export function CreateSteamGameAccountShortcut(
+    uniqueID: string,
+    accountDisplayName: string,
+    accountLogin: string,
+    appID: string,
+    gameName: string,
+  ): CancellablePromise<ShortcutResult>
+
   export function CreatePlatformShortcut(platformKey: string): CancellablePromise<ShortcutResult>
   export function DeletePlatformShortcut(platformKey: string): CancellablePromise<void>
   export function HideShortcut(platformKey: string, fileName: string): CancellablePromise<void>

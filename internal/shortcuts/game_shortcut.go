@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"TcNo-Acc-Switcher/internal/cli"
@@ -15,6 +16,30 @@ import (
 )
 
 var steamRungameIDRE = regexp.MustCompile(`(?i)steam://rungameid/(\d+)`)
+
+func normalizeSteamShortcutDecimal(raw string, bitSize int) (string, bool) {
+	id := strings.TrimSpace(raw)
+	if id == "" || (len(id) > 1 && id[0] == '0') {
+		return "", false
+	}
+	n, err := strconv.ParseUint(id, 10, bitSize)
+	if err != nil || n == 0 {
+		return "", false
+	}
+	return id, true
+}
+
+func steamGameAccountShortcutArgs(uniqueID, appID string) (string, string, error) {
+	steamID64, ok := normalizeSteamShortcutDecimal(uniqueID, 64)
+	if !ok {
+		return "", "", fmt.Errorf("invalid Steam account id")
+	}
+	appID, ok = normalizeSteamShortcutDecimal(appID, 32)
+	if !ok {
+		return "", "", fmt.Errorf("invalid Steam app id")
+	}
+	return steamID64, appID, nil
+}
 
 // CreateGameAccountShortcut: steam://rungameid .url tiles use --run-appid; otherwise --run-shortcut.
 func CreateGameAccountShortcut(platformKey, uniqueID, accountDisplayName, accountLogin, gameFileName string) (ShortcutResult, error) {
@@ -73,13 +98,47 @@ func CreateGameAccountShortcut(platformKey, uniqueID, accountDisplayName, accoun
 
 	icon := buildGameAccountShortcutIcon(platformKey, uniqueID, gameFileName)
 
+	return writeGameAccountShortcut(outPath, self, platformKey, uniqueID, title, argv, icon, gameFileName)
+}
+
+// CreateSteamGameAccountShortcut creates a Desktop shortcut directly from a
+// Games-view AppID and account. It does not depend on a cached .url/.lnk entry:
+// launching the shortcut switches to uniqueID and then opens steam://rungameid.
+func CreateSteamGameAccountShortcut(uniqueID, accountDisplayName, accountLogin, appID, gameName string) (ShortcutResult, error) {
+	uniqueID, appID, err := steamGameAccountShortcutArgs(uniqueID, appID)
+	if err != nil {
+		return ShortcutResult{}, err
+	}
+	gameName = strings.TrimSpace(gameName)
+	if gameName == "" {
+		gameName = "Steam " + appID
+	}
+
+	self, err := os.Executable()
+	if err != nil {
+		return ShortcutResult{}, err
+	}
+	self = filepath.Clean(self)
+	desktop, err := winutil.DesktopWriteDir()
+	if err != nil {
+		return ShortcutResult{}, err
+	}
+
+	title := gameAccountShortcutDesktopBaseName("Steam", uniqueID, accountDisplayName, accountLogin, gameName)
+	outPath := filepath.Join(desktop, title+".lnk")
+	argv := "+s:" + uniqueID + " --run-appid=" + appID
+	icon := buildSteamAppAccountShortcutIcon(uniqueID, appID)
+	return writeGameAccountShortcut(outPath, self, "Steam", uniqueID, title, argv, icon, "app-"+appID)
+}
+
+func writeGameAccountShortcut(outPath, self, platformKey, uniqueID, title, argv, icon, identity string) (ShortcutResult, error) {
 	workDir := filepath.Dir(self)
 	desc := fmt.Sprintf("TcNo Account Switcher - %s - %s", platformKey, title)
-	appID := winutil.ShortcutAppUserModelID(platformKey, uniqueID, gameFileName)
+	appUserModelID := winutil.ShortcutAppUserModelID(platformKey, uniqueID, identity)
 	if shortcutAlreadyMatches(outPath, self, argv, icon) {
 		return ShortcutResult{Path: outPath, AlreadyExisted: true}, nil
 	}
-	if err := winutil.WriteShortcutLnk(outPath, self, argv, workDir, desc, icon, appID); err != nil {
+	if err := winutil.WriteShortcutLnk(outPath, self, argv, workDir, desc, icon, appUserModelID); err != nil {
 		return ShortcutResult{}, err
 	}
 	return ShortcutResult{Path: outPath}, nil
@@ -137,4 +196,26 @@ func buildGameAccountShortcutIcon(platformKey, uniqueID, gameFileName string) st
 	}
 
 	return buildAccountShortcutIcon(platformKey, uniqueID)
+}
+
+func buildSteamAppAccountShortcutIcon(uniqueID, appID string) string {
+	p, ok := cachedShortcutAvatar("Steam", uniqueID)
+	if ok && p != "" {
+		root, rootErr := paths.DataRoot()
+		www, wwwErr := paths.WwwrootDir()
+		if rootErr == nil && wwwErr == nil {
+			gameIconPath := filepath.Join(www, "img", "gameicons", "square", appID+".jpg")
+			if st, statErr := os.Stat(gameIconPath); statErr == nil && !st.IsDir() {
+				cacheDir := filepath.Join(root, "IconCache")
+				if mkErr := os.MkdirAll(cacheDir, 0o755); mkErr == nil {
+					icoName := fmt.Sprintf("steam_game_%s_%s.ico", appID, sanitizeShortcutFileName(uniqueID))
+					icoPath := filepath.Join(cacheDir, icoName)
+					if buildErr := winutil.BuildCombinedGameIcon(gameIconPath, p, icoPath); buildErr == nil {
+						return icoPath + ",0"
+					}
+				}
+			}
+		}
+	}
+	return buildGameAccountShortcutIcon("Steam", uniqueID, appID+".url")
 }

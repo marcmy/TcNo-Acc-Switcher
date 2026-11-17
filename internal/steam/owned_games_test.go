@@ -39,11 +39,12 @@ func useOwnedGamesRoot(t *testing.T, installed []InstalledGameInfo) {
 		t.Fatal(err)
 	}
 
-	installedFn, warmFn, localFn := ownedGamesInstalledFn, ownedGamesWarmFn, ownedGamesLocalIconsFn
+	installedFn, warmFn, localFn, ownersFn := ownedGamesInstalledFn, ownedGamesWarmFn, ownedGamesLocalIconsFn, ownedGamesLocalOwnersFn
 	appInfoFn := appInfoNamesFn
 	t.Cleanup(func() {
 		ownedGamesInstalledFn, ownedGamesWarmFn = installedFn, warmFn
 		ownedGamesLocalIconsFn = localFn
+		ownedGamesLocalOwnersFn = ownersFn
 		appInfoNamesFn = appInfoFn
 		steamAppNameMapMu.Lock()
 		steamAppNameMapMem = nil
@@ -53,6 +54,7 @@ func useOwnedGamesRoot(t *testing.T, installed []InstalledGameInfo) {
 	appInfoNamesFn = func() map[string]string { return nil }
 	ownedGamesInstalledFn = func(map[string]string, map[string]string) []InstalledGameInfo { return installed }
 	ownedGamesWarmFn = func(context.Context, []string) map[string]string { return nil }
+	ownedGamesLocalOwnersFn = func() map[string][]string { return nil }
 	// Stands in for a librarycache that has art for everything, so the join is
 	// tested rather than whatever Steam happens to have cached on this machine.
 	ownedGamesLocalIconsFn = func(appIDs []string) map[string]string {
@@ -61,6 +63,38 @@ func useOwnedGamesRoot(t *testing.T, installed []InstalledGameInfo) {
 			out[id] = GameIconURL(id)
 		}
 		return out
+	}
+}
+
+func TestGetOwnedGamesListMergesLocalAppTicketOwners(t *testing.T) {
+	useOwnedGamesRoot(t, []InstalledGameInfo{
+		{AppID: "570", Name: "Dota 2"},
+		{AppID: "730", Name: "Counter-Strike 2"},
+	})
+	now := time.Now()
+	if err := ownedgames.Put(ownedGamesAccountA, []uint32{730}, now); err != nil {
+		t.Fatal(err)
+	}
+	ownedGamesLocalOwnersFn = func() map[string][]string {
+		return map[string][]string{
+			"570": {ownedGamesAccountB},
+			"730": {ownedGamesAccountA, ownedGamesAccountB},
+		}
+	}
+
+	list, err := NewSteamService().GetOwnedGamesList()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := make(map[string]OwnedGameDTO, len(list))
+	for _, game := range list {
+		byID[game.AppID] = game
+	}
+	if got := byID["570"].Owners; len(got) != 1 || got[0] != ownedGamesAccountB {
+		t.Fatalf("owners of local-only 570 = %v, want account B", got)
+	}
+	if got := byID["730"].Owners; len(got) != 2 || got[0] != ownedGamesAccountA || got[1] != ownedGamesAccountB {
+		t.Fatalf("owners of merged 730 = %v, want A and B once each", got)
 	}
 }
 

@@ -29,9 +29,10 @@ type OwnedGameDTO struct {
 	AppID   string `json:"appId"`
 	Name    string `json:"name"`
 	IconURL string `json:"iconUrl"`
-	// Owners is empty for a game that is installed locally but owned by no vault
-	// account. That means ownership is unknown, not that nobody owns it: a
-	// library can only be read while the Steam Guard vault is unlocked.
+	// Owners is empty for a game that is installed locally but has no positive
+	// ownership evidence. That means ownership is unknown, not that nobody owns
+	// it: local app tickets are intentionally additive, while the authenticated
+	// Steam Guard sweep supplies complete libraries when available.
 	Owners []string `json:"owners"`
 }
 
@@ -59,13 +60,14 @@ var ownedGamesWarming atomic.Bool
 // process, into whatever Steam is installed on the machine and onto the
 // network, and none of them belongs in a unit test.
 var (
-	ownedGamesInstalledFn  = installedGamesForOwnedList
-	ownedGamesWarmFn       = WarmGameIcons
-	ownedGamesLocalIconsFn = EnsureLocalGameIcons
+	ownedGamesInstalledFn   = installedGamesForOwnedList
+	ownedGamesWarmFn        = WarmGameIcons
+	ownedGamesLocalIconsFn  = EnsureLocalGameIcons
+	ownedGamesLocalOwnersFn = localAppTicketOwners
 )
 
-// GetOwnedGamesList joins every vault account's stored library into one list of
-// games, with the accounts that own each.
+// GetOwnedGamesList joins stored libraries and Steam's per-account local app
+// tickets into one list of games, with the accounts positively known to own each.
 //
 // It reads the store only: no vault access, no credentials, no network beyond
 // the artwork warmed in the background. A locked vault is a non-event here -
@@ -85,7 +87,12 @@ func (s *SteamService) GetOwnedGamesList() ([]OwnedGameDTO, error) {
 	for steamID64, entry := range entries {
 		for _, appID := range entry.AppIDs {
 			id := strconv.FormatUint(uint64(appID), 10)
-			owners[id] = append(owners[id], steamID64)
+			addOwnedGameOwner(owners, id, steamID64)
+		}
+	}
+	for appID, steamIDs := range ownedGamesLocalOwnersFn() {
+		for _, steamID64 := range steamIDs {
+			addOwnedGameOwner(owners, appID, steamID64)
 		}
 	}
 
@@ -122,6 +129,18 @@ func (s *SteamService) GetOwnedGamesList() ([]OwnedGameDTO, error) {
 
 	startOwnedGamesIconWarm(list)
 	return list, nil
+}
+
+func addOwnedGameOwner(owners map[string][]string, appID, steamID64 string) {
+	appID = strings.TrimSpace(appID)
+	steamID64 = strings.TrimSpace(steamID64)
+	if appID == "" || steamID64 == "" {
+		return
+	}
+	if slices.Contains(owners[appID], steamID64) {
+		return
+	}
+	owners[appID] = append(owners[appID], steamID64)
 }
 
 // sortOwnedGames orders the list by name, case-insensitively, and by app id

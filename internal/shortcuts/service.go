@@ -166,6 +166,13 @@ func (s *Service) CreateGameAccountShortcut(platformKey, uniqueID, accountDispla
 	return CreateGameAccountShortcut(platformKey, uniqueID, accountDisplayName, accountLogin, gameFileName)
 }
 
+func (s *Service) CreateSteamGameAccountShortcut(uniqueID, accountDisplayName, accountLogin, appID, gameName string) (ShortcutResult, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return ShortcutResult{}, err
+	}
+	return CreateSteamGameAccountShortcut(uniqueID, accountDisplayName, accountLogin, appID, gameName)
+}
+
 func (s *Service) ResolveAccountShortcutStem(platformKey, uniqueID, displayName, accountLogin string) string {
 	if security.AppLocked() {
 		return ""
